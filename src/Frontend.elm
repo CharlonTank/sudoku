@@ -4,8 +4,9 @@ import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes as Attr
-import Html.Events exposing (onInput)
+import Html.Events exposing (onClick)
 import Lamdera
+import Palette.Color as Color
 import Types exposing (..)
 import Url
 
@@ -28,6 +29,7 @@ init url key =
       , message = "Welcome to Cooperative Sudoku!"
       , sudokuGrid = List.repeat 9 (List.repeat 9 (Changeable 0))
       , userGrid = List.repeat 9 (List.repeat 9 (Changeable 0))
+      , selectedCell = Nothing
       }
     , Cmd.none
     )
@@ -54,17 +56,18 @@ update msg model =
         NoOpFrontendMsg ->
             ( model, Cmd.none )
 
-        UserInput row col value ->
-            let
-                newValue =
-                    value
-                        |> String.left 1
-                        |> String.toInt
-                        |> Maybe.withDefault 0
-            in
-            ( model
-            , Lamdera.sendToBackend (UpdateCell row col newValue)
-            )
+        SelectCell row col ->
+            ( { model | selectedCell = Just ( row, col ) }, Cmd.none )
+
+        InputDigit digit ->
+            case model.selectedCell of
+                Just ( row, col ) ->
+                    ( model
+                    , Lamdera.sendToBackend (UpdateCell row col digit)
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
 
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -96,14 +99,15 @@ view model =
                 , Attr.style "text-align" "center"
                 ]
                 [ text "Cooperative Sudoku" ]
-            , viewSudokuGrid model.sudokuGrid model.userGrid
+            , viewSudokuGrid model.sudokuGrid model.userGrid model.selectedCell
+            , viewDigitButtons
             ]
         ]
     }
 
 
-viewSudokuGrid : SudokuGrid -> SudokuGrid -> Html FrontendMsg
-viewSudokuGrid originalGrid userGrid =
+viewSudokuGrid : SudokuGrid -> SudokuGrid -> Maybe ( Int, Int ) -> Html FrontendMsg
+viewSudokuGrid originalGrid userGrid selectedCell =
     div
         [ Attr.style "display" "grid"
         , Attr.style "grid-template-columns" "repeat(9, 1fr)"
@@ -112,50 +116,57 @@ viewSudokuGrid originalGrid userGrid =
         , Attr.style "border" "2px solid #333"
         , Attr.style "margin" "0 auto"
         ]
-        (List.concat (List.indexedMap (viewSudokuRow originalGrid userGrid) userGrid))
+        (List.concat (List.indexedMap (viewSudokuRow originalGrid userGrid selectedCell) userGrid))
 
 
-viewSudokuRow : SudokuGrid -> SudokuGrid -> Int -> List DigitValue -> List (Html FrontendMsg)
-viewSudokuRow originalGrid userGrid rowIndex row =
-    List.indexedMap (viewSudokuCell originalGrid userGrid rowIndex) row
+viewSudokuRow : SudokuGrid -> SudokuGrid -> Maybe ( Int, Int ) -> Int -> List DigitValue -> List (Html FrontendMsg)
+viewSudokuRow originalGrid userGrid selectedCell rowIndex row =
+    List.indexedMap (viewSudokuCell originalGrid userGrid selectedCell rowIndex) row
 
 
-viewSudokuCell : SudokuGrid -> SudokuGrid -> Int -> Int -> DigitValue -> Html FrontendMsg
-viewSudokuCell originalGrid userGrid rowIndex colIndex value =
+viewSudokuCell : SudokuGrid -> SudokuGrid -> Maybe ( Int, Int ) -> Int -> Int -> DigitValue -> Html FrontendMsg
+viewSudokuCell originalGrid userGrid selectedCell rowIndex colIndex value =
     let
-        originalValue =
-            getCell rowIndex colIndex originalGrid
-
         isOriginal =
-            case originalValue of
-                NotChangeable _ ->
+            case getCell rowIndex colIndex originalGrid of
+                Just (NotChangeable _) ->
                     True
 
-                Changeable _ ->
+                Just (Changeable _) ->
                     False
+
+                Nothing ->
+                    True
 
         isCompleted =
             isRowCompleted rowIndex userGrid
                 || isColumnCompleted colIndex userGrid
                 || isSquareCompleted rowIndex colIndex userGrid
 
+        isSelected =
+            selectedCell == Just ( rowIndex, colIndex )
+
         backgroundColor =
-            if isCompleted then
-                "#e6f3ff"
+            if isSelected then
+                "#007bff"
+                -- Dark blue for selected cell
+
+            else if isCompleted then
+                Color.toHex Color.Completed
 
             else if isOriginal then
-                "#e0e0e0"
+                Color.toHex Color.Original
 
             else
                 case value of
                     NotChangeable _ ->
-                        "#f0f0f0"
+                        Color.toHex Color.Input
 
                     Changeable 0 ->
-                        "white"
+                        Color.toHex Color.Background
 
                     Changeable _ ->
-                        "#f0f0f0"
+                        Color.toHex Color.Input
 
         borderStyle =
             "1px solid #000"
@@ -219,32 +230,44 @@ viewSudokuCell originalGrid userGrid rowIndex colIndex value =
         , Attr.style "border-top" borderTop
         , Attr.style "border-left" borderLeft
         , Attr.style "box-sizing" "border-box"
-        ]
-        [ if isOriginal then
-            text (String.fromInt cellValue)
+        , Attr.style "color"
+            (if isSelected then
+                "white"
 
-          else
-            input
-                [ Attr.type_ "text"
-                , Attr.value
-                    (if cellValue == 0 then
-                        ""
-
-                     else
-                        String.fromInt cellValue
-                    )
-                , Attr.style "width" "100%"
-                , Attr.style "height" "100%"
-                , Attr.style "border" "none"
-                , Attr.style "text-align" "center"
-                , Attr.style "font-size" "inherit"
-                , Attr.style "background-color" "transparent"
-                , Attr.style "outline" "none"
-                , Attr.maxlength 1
-                , onInput (UserInput rowIndex colIndex)
-                ]
-                []
+             else
+                "black"
+            )
+        , onClick (SelectCell rowIndex colIndex)
         ]
+        [ text
+            (if cellValue == 0 then
+                ""
+
+             else
+                String.fromInt cellValue
+            )
+        ]
+
+
+viewDigitButtons : Html FrontendMsg
+viewDigitButtons =
+    div
+        [ Attr.style "display" "flex"
+        , Attr.style "justify-content" "center"
+        , Attr.style "margin-top" "20px"
+        ]
+        (List.range 1 9
+            |> List.map
+                (\digit ->
+                    button
+                        [ onClick (InputDigit digit)
+                        , Attr.style "margin" "0 5px"
+                        , Attr.style "padding" "10px 15px"
+                        , Attr.style "font-size" "18px"
+                        ]
+                        [ text (String.fromInt digit) ]
+                )
+        )
 
 
 isRowCompleted : Int -> SudokuGrid -> Bool
@@ -301,7 +324,7 @@ isSquareCompleted rowIndex colIndex grid =
                 |> List.concatMap
                     (\r ->
                         List.range 0 2
-                            |> List.map
+                            |> List.filterMap
                                 (\c ->
                                     getCell (squareStartRow + r) (squareStartCol + c) grid
                                 )
@@ -319,15 +342,12 @@ isSquareCompleted rowIndex colIndex grid =
     List.sort squareValues == List.range 1 9
 
 
-getCell : Int -> Int -> SudokuGrid -> DigitValue
+getCell : Int -> Int -> SudokuGrid -> Maybe DigitValue
 getCell row col grid =
     grid
         |> List.drop row
         |> List.head
-        |> Maybe.withDefault []
-        |> List.drop col
-        |> List.head
-        |> Maybe.withDefault (Changeable 0)
+        |> Maybe.andThen (List.drop col >> List.head)
 
 
 updateGrid : Int -> Int -> Int -> SudokuGrid -> SudokuGrid

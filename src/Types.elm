@@ -3,6 +3,7 @@ module Types exposing (..)
 import Browser exposing (UrlRequest)
 import Browser.Navigation exposing (Key)
 import Lamdera exposing (ClientId, SessionId)
+import Random
 import Url exposing (Url)
 
 
@@ -20,6 +21,7 @@ type alias FrontendModel =
     , message : String
     , sudokuGrid : SudokuGrid
     , userGrid : SudokuGrid
+    , selectedCell : Maybe ( Int, Int )
     }
 
 
@@ -27,6 +29,7 @@ type alias BackendModel =
     { message : String
     , sudokuGrid : SudokuGrid
     , userGrid : SudokuGrid
+    , seed : Random.Seed
     }
 
 
@@ -34,7 +37,8 @@ type FrontendMsg
     = UrlClicked UrlRequest
     | UrlChanged Url
     | NoOpFrontendMsg
-    | UserInput Int Int String
+    | SelectCell Int Int
+    | InputDigit Int
 
 
 type ToBackend
@@ -43,8 +47,9 @@ type ToBackend
 
 type BackendMsg
     = NoOpBackendMsg
-    | NewSudokuGridBackendMsg SudokuGrid
+    | NewSudokuGridBackendMsg SudokuGrid Random.Seed
     | OnConnect SessionId ClientId
+    | InitialTime Int
 
 
 type ToFrontend
