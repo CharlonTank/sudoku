@@ -142,7 +142,6 @@ viewSudokuCell originalGrid userGrid rowIndex colIndex value =
         backgroundColor =
             if isCompleted then
                 "#e6f3ff"
-                -- Light blue for completed sections
 
             else if isOriginal then
                 "#e0e0e0"
@@ -248,10 +247,6 @@ viewSudokuCell originalGrid userGrid rowIndex colIndex value =
         ]
 
 
-
--- Helper functions for checking completions
-
-
 isRowCompleted : Int -> SudokuGrid -> Bool
 isRowCompleted rowIndex grid =
     grid
@@ -324,10 +319,6 @@ isSquareCompleted rowIndex colIndex grid =
     List.sort squareValues == List.range 1 9
 
 
-
--- Helper function to get a cell value from the grid
-
-
 getCell : Int -> Int -> SudokuGrid -> DigitValue
 getCell row col grid =
     grid
@@ -337,10 +328,6 @@ getCell row col grid =
         |> List.drop col
         |> List.head
         |> Maybe.withDefault (Changeable 0)
-
-
-
--- Helper function to update a cell in the grid
 
 
 updateGrid : Int -> Int -> Int -> SudokuGrid -> SudokuGrid

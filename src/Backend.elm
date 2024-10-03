@@ -170,10 +170,6 @@ removeCells cellsToRemove grid =
     List.foldl (\( row, col ) g -> setCell row col (Changeable 0) g) grid positionsToRemove
 
 
-
--- Helper functions
-
-
 getCell : Int -> Int -> SudokuGrid -> DigitValue
 getCell row col grid =
     grid
@@ -276,10 +272,6 @@ updateGrid row col value grid =
         grid
 
 
-
--- Add this helper function
-
-
 isSudokuComplete : SudokuGrid -> Bool
 isSudokuComplete grid =
     List.all (List.all (\cell -> cell /= Changeable 0)) grid
@@ -295,8 +287,8 @@ updateCompletedSections grid =
 
 updateCompletedRows : SudokuGrid -> SudokuGrid
 updateCompletedRows =
-    List.indexedMap
-        (\rowIndex row ->
+    List.map
+        (\row ->
             if isRowCompleted row then
                 List.map
                     (\value ->
@@ -319,14 +311,14 @@ updateCompletedColumns grid =
     List.range 0 8
         |> List.foldl
             (\colIndex accGrid ->
-                let
-                    column =
-                        List.map (\row -> List.drop colIndex row |> List.head |> Maybe.withDefault (Changeable 0)) accGrid
-                in
-                if isColumnCompleted column then
-                    List.indexedMap
-                        (\rowIndex row ->
-                            List.indexedMap
+                if
+                    accGrid
+                        |> List.map (\row -> List.drop colIndex row |> List.head |> Maybe.withDefault (Changeable 0))
+                        |> isColumnCompleted
+                then
+                    accGrid
+                        |> List.map
+                            (List.indexedMap
                                 (\cellIndex cell ->
                                     if cellIndex == colIndex then
                                         case cell of
@@ -339,9 +331,7 @@ updateCompletedColumns grid =
                                     else
                                         cell
                                 )
-                                row
-                        )
-                        accGrid
+                            )
 
                 else
                     accGrid
@@ -409,10 +399,6 @@ updateSquare startRow startCol grid =
                 row
         )
         grid
-
-
-
--- Update these helper functions to work with DigitValue
 
 
 isRowCompleted : List DigitValue -> Bool
