@@ -6,8 +6,13 @@ import Lamdera exposing (ClientId, SessionId)
 import Url exposing (Url)
 
 
+type DigitValue
+    = NotChangeable Int
+    | Changeable Int
+
+
 type alias SudokuGrid =
-    List (List Int)
+    List (List DigitValue)
 
 
 type alias FrontendModel =
