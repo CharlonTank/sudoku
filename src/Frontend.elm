@@ -4,7 +4,7 @@ import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes as Attr
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onInput)
 import Lamdera
 import Types exposing (..)
 import Url
@@ -25,7 +25,7 @@ app =
 init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
     ( { key = key
-      , message = "Welcome to Sudoku Generator!"
+      , message = "Welcome to Cooperative Sudoku!"
       , sudokuGrid = List.repeat 9 (List.repeat 9 0)
       , userGrid = List.repeat 9 (List.repeat 9 0)
       }
@@ -54,11 +54,6 @@ update msg model =
         NoOpFrontendMsg ->
             ( model, Cmd.none )
 
-        GenerateSudoku ->
-            ( { model | userGrid = List.repeat 9 (List.repeat 9 0) }
-            , Lamdera.sendToBackend RequestNewSudoku
-            )
-
         UserInput row col value ->
             let
                 newValue =
@@ -66,11 +61,10 @@ update msg model =
                         |> String.left 1
                         |> String.toInt
                         |> Maybe.withDefault 0
-
-                newUserGrid =
-                    updateGrid row col newValue model.userGrid
             in
-            ( { model | userGrid = newUserGrid }, Cmd.none )
+            ( model
+            , Lamdera.sendToBackend (UpdateCell row col newValue)
+            )
 
 
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -79,10 +73,13 @@ updateFromBackend msg model =
         NewSudokuGridToFrontend grid ->
             ( { model | sudokuGrid = grid, userGrid = grid }, Cmd.none )
 
+        UpdatedUserGridToFrontend grid ->
+            ( { model | userGrid = grid }, Cmd.none )
+
 
 view : FrontendModel -> Browser.Document FrontendMsg
 view model =
-    { title = "Sudoku Generator"
+    { title = "Cooperative Sudoku"
     , body =
         [ div
             [ Attr.style "display" "flex"
@@ -91,22 +88,7 @@ view model =
             , Attr.style "font-family" "Arial, sans-serif"
             , Attr.style "padding" "20px"
             ]
-            [ h1 [ Attr.style "color" "#333" ] [ text "Sudoku Generator" ]
-            , button
-                [ onClick GenerateSudoku
-                , Attr.style "background-color" "#4CAF50"
-                , Attr.style "border" "none"
-                , Attr.style "color" "white"
-                , Attr.style "padding" "15px 32px"
-                , Attr.style "text-align" "center"
-                , Attr.style "text-decoration" "none"
-                , Attr.style "display" "inline-block"
-                , Attr.style "font-size" "16px"
-                , Attr.style "margin" "20px 0"
-                , Attr.style "cursor" "pointer"
-                , Attr.style "border-radius" "4px"
-                ]
-                [ text "Generate New Sudoku" ]
+            [ h1 [ Attr.style "color" "#333" ] [ text "Cooperative Sudoku" ]
             , viewSudokuGrid model.sudokuGrid model.userGrid
             ]
         ]

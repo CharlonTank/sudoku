@@ -1,6 +1,6 @@
 module Backend exposing (..)
 
-import Lamdera exposing (ClientId, SessionId)
+import Lamdera exposing (ClientId, SessionId, broadcast, sendToFrontend)
 import List.Extra
 import Random
 import Types exposing (..)
@@ -11,15 +11,23 @@ app =
         { init = init
         , update = update
         , updateFromFrontend = updateFromFrontend
-        , subscriptions = \m -> Sub.none
+        , subscriptions = subscriptions
         }
 
 
 init : ( BackendModel, Cmd BackendMsg )
 init =
-    ( { message = "Hello!" }
-    , Cmd.none
+    ( { message = "Hello!"
+      , sudokuGrid = List.repeat 9 (List.repeat 9 0)
+      , userGrid = List.repeat 9 (List.repeat 9 0)
+      }
+    , Random.generate NewSudokuGridBackendMsg generateSudoku
     )
+
+
+subscriptions : BackendModel -> Sub BackendMsg
+subscriptions model =
+    Lamdera.onConnect OnConnect
 
 
 update : BackendMsg -> BackendModel -> ( BackendModel, Cmd BackendMsg )
@@ -28,15 +36,40 @@ update msg model =
         NoOpBackendMsg ->
             ( model, Cmd.none )
 
-        NewSudokuGridBackendMsg clientId grid ->
-            ( model, Lamdera.sendToFrontend clientId (NewSudokuGridToFrontend grid) )
+        NewSudokuGridBackendMsg grid ->
+            let
+                newModel =
+                    { model | sudokuGrid = grid, userGrid = grid }
+            in
+            ( newModel
+            , broadcast (NewSudokuGridToFrontend grid)
+            )
+
+        OnConnect sessionId clientId ->
+            ( model
+            , sendToFrontend clientId (NewSudokuGridToFrontend model.userGrid)
+            )
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
 updateFromFrontend sessionId clientId msg model =
     case msg of
-        RequestNewSudoku ->
-            ( model, Random.generate (NewSudokuGridBackendMsg clientId) generateSudoku )
+        UpdateCell row col value ->
+            let
+                newUserGrid =
+                    updateGrid row col value model.userGrid
+
+                newModel =
+                    { model | userGrid = newUserGrid }
+
+                cmd =
+                    if isSudokuComplete newUserGrid then
+                        Random.generate NewSudokuGridBackendMsg generateSudoku
+
+                    else
+                        broadcast (UpdatedUserGridToFrontend newUserGrid)
+            in
+            ( newModel, cmd )
 
 
 generateSudoku : Random.Generator SudokuGrid
@@ -217,3 +250,33 @@ shuffle list seed =
                 list
     in
     ( shuffledList, newSeed )
+
+
+updateGrid : Int -> Int -> Int -> SudokuGrid -> SudokuGrid
+updateGrid row col value grid =
+    List.indexedMap
+        (\r rowList ->
+            if r == row then
+                List.indexedMap
+                    (\c cellValue ->
+                        if c == col then
+                            value
+
+                        else
+                            cellValue
+                    )
+                    rowList
+
+            else
+                rowList
+        )
+        grid
+
+
+
+-- Add this helper function
+
+
+isSudokuComplete : SudokuGrid -> Bool
+isSudokuComplete grid =
+    List.all (List.all (\cell -> cell /= 0)) grid
