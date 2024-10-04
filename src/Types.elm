@@ -7,28 +7,39 @@ import Random
 import Url exposing (Url)
 
 
-type DigitValue
+type alias SudokuGridBackend =
+    List (List DigitValueBackend)
+
+
+type alias DigitValueBackend =
+    { cellState : CellStateBackend, value : Int }
+
+
+type CellStateBackend
+    = RevealedCell
+    | Guess Int
+    | EmptyCell
+
+
+type alias SudokuGridFrontend =
+    List (List CellStateFrontend)
+
+
+type CellStateFrontend
     = NotChangeable Int
     | Changeable Int
-
-
-type alias SudokuGrid =
-    List (List DigitValue)
+    | NoValue
 
 
 type alias FrontendModel =
     { key : Key
-    , message : String
-    , sudokuGrid : SudokuGrid
-    , userGrid : SudokuGrid
+    , grid : Maybe SudokuGridFrontend
     , selectedCell : Maybe ( Int, Int )
     }
 
 
 type alias BackendModel =
-    { message : String
-    , sudokuGrid : SudokuGrid
-    , userGrid : SudokuGrid
+    { grid : Maybe SudokuGridBackend
     , seed : Random.Seed
     }
 
@@ -47,11 +58,29 @@ type ToBackend
 
 type BackendMsg
     = NoOpBackendMsg
-    | NewSudokuGridBackendMsg SudokuGrid Random.Seed
+    | NewSudokuGridBackendMsg SudokuGridBackend Random.Seed
     | OnConnect SessionId ClientId
     | InitialTime Int
 
 
 type ToFrontend
-    = NewSudokuGridToFrontend SudokuGrid
-    | UpdatedUserGridToFrontend SudokuGrid
+    = NewSudokuGridToFrontend SudokuGridFrontend
+    | UpdatedUserGridToFrontend SudokuGridFrontend
+
+
+cellStateToFrontend : DigitValueBackend -> CellStateFrontend
+cellStateToFrontend { cellState, value } =
+    case cellState of
+        RevealedCell ->
+            NotChangeable value
+
+        Guess guessValue ->
+            Changeable guessValue
+
+        EmptyCell ->
+            NoValue
+
+
+sudokuGridToFrontend : SudokuGridBackend -> SudokuGridFrontend
+sudokuGridToFrontend =
+    List.map (List.map cellStateToFrontend)

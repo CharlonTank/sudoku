@@ -2,22 +2,21 @@ module SudokuLogic exposing
     ( generateSudoku
     , isSudokuComplete
     , isValid
-    , updateCompletedSections
     )
 
 import List.Extra
 import Random
-import Types exposing (DigitValue(..), SudokuGrid)
+import Types exposing (CellStateBackend(..), DigitValueBackend, SudokuGridBackend)
 
 
-generateSudoku : Random.Seed -> ( SudokuGrid, Random.Seed )
+generateSudoku : Random.Seed -> ( SudokuGridBackend, Random.Seed )
 generateSudoku seed =
     let
         ( difficulty, seed1 ) =
             Random.step (Random.int 40 55) seed
 
         emptyGrid =
-            List.repeat 9 (List.repeat 9 (Changeable 0))
+            List.repeat 9 (List.repeat 9 { cellState = EmptyCell, value = 0 })
 
         ( filledGrid, seed2 ) =
             fillGrid seed1 emptyGrid
@@ -28,7 +27,7 @@ generateSudoku seed =
     ( puzzle, seed3 )
 
 
-fillGrid : Random.Seed -> SudokuGrid -> ( SudokuGrid, Random.Seed )
+fillGrid : Random.Seed -> SudokuGridBackend -> ( SudokuGridBackend, Random.Seed )
 fillGrid seed grid =
     let
         ( newGrid, _, newSeed ) =
@@ -37,7 +36,7 @@ fillGrid seed grid =
     ( newGrid, newSeed )
 
 
-fillCell : Int -> Int -> Random.Seed -> SudokuGrid -> ( SudokuGrid, Bool, Random.Seed )
+fillCell : Int -> Int -> Random.Seed -> SudokuGridBackend -> ( SudokuGridBackend, Bool, Random.Seed )
 fillCell row col seed grid =
     if row == 9 then
         ( grid, True, seed )
@@ -45,7 +44,7 @@ fillCell row col seed grid =
     else if col == 9 then
         fillCell (row + 1) 0 seed grid
 
-    else if getCell row col grid /= Changeable 0 then
+    else if (getCell row col grid).cellState /= EmptyCell then
         fillCell row (col + 1) seed grid
 
     else
@@ -63,7 +62,7 @@ fillCell row col seed grid =
             ( grid, False, finalSeed )
 
 
-tryValues : Int -> Int -> List Int -> Random.Seed -> SudokuGrid -> ( SudokuGrid, Bool, Random.Seed )
+tryValues : Int -> Int -> List Int -> Random.Seed -> SudokuGridBackend -> ( SudokuGridBackend, Bool, Random.Seed )
 tryValues row col values seed grid =
     case values of
         [] ->
@@ -73,7 +72,7 @@ tryValues row col values seed grid =
             if isValid row col value grid then
                 let
                     newGrid =
-                        setCell row col (Changeable value) grid
+                        setCell row col { cellState = RevealedCell, value = value } grid
 
                     ( filledGrid, success, newSeed ) =
                         fillCell row (col + 1) seed newGrid
@@ -88,7 +87,7 @@ tryValues row col values seed grid =
                 tryValues row col rest seed grid
 
 
-removeCells : Int -> SudokuGrid -> Random.Seed -> ( SudokuGrid, Random.Seed )
+removeCells : Int -> SudokuGridBackend -> Random.Seed -> ( SudokuGridBackend, Random.Seed )
 removeCells cellsToRemove grid seed =
     let
         allPositions =
@@ -101,34 +100,34 @@ removeCells cellsToRemove grid seed =
             List.take cellsToRemove shuffledPositions
 
         newGrid =
-            List.foldl (\( row, col ) g -> setCell row col (Changeable 0) g) grid positionsToRemove
+            List.foldl (\( row, col ) g -> setCell row col { cellState = EmptyCell, value = (getCell row col g).value } g) grid positionsToRemove
     in
     ( newGrid, newSeed )
 
 
-isValid : Int -> Int -> Int -> SudokuGrid -> Bool
+isValid : Int -> Int -> Int -> SudokuGridBackend -> Bool
 isValid row col value grid =
     isValidRow row value grid
         && isValidColumn col value grid
         && isValidBox (row // 3 * 3) (col // 3 * 3) value grid
 
 
-isValidRow : Int -> Int -> SudokuGrid -> Bool
+isValidRow : Int -> Int -> SudokuGridBackend -> Bool
 isValidRow row value grid =
-    not (List.member (Changeable value) (List.drop row grid |> List.head |> Maybe.withDefault []))
+    not (List.member value (List.map .value (List.drop row grid |> List.head |> Maybe.withDefault [])))
 
 
-isValidColumn : Int -> Int -> SudokuGrid -> Bool
+isValidColumn : Int -> Int -> SudokuGridBackend -> Bool
 isValidColumn col value grid =
-    not (List.member (Changeable value) (List.map (\row -> getCell row col grid) (List.range 0 8)))
+    not (List.member value (List.map (\row -> (getCell row col grid).value) (List.range 0 8)))
 
 
-isValidBox : Int -> Int -> Int -> SudokuGrid -> Bool
+isValidBox : Int -> Int -> Int -> SudokuGridBackend -> Bool
 isValidBox boxRow boxCol value grid =
     not
-        (List.member (Changeable value)
+        (List.member value
             (List.concatMap
-                (\r -> List.map (\c -> getCell r c grid) (List.range boxCol (boxCol + 2)))
+                (\r -> List.map (\c -> (getCell r c grid).value) (List.range boxCol (boxCol + 2)))
                 (List.range boxRow (boxRow + 2))
             )
         )
@@ -155,112 +154,41 @@ shuffle list seed =
     ( shuffledList, newSeed )
 
 
-updateCompletedSections : SudokuGrid -> SudokuGrid
-updateCompletedSections grid =
-    grid
-        |> updateCompletedRows
-        |> updateCompletedColumns
-        |> updateCompletedSquares
-
-
-updateCompletedRows : SudokuGrid -> SudokuGrid
-updateCompletedRows =
-    List.map
+isSudokuComplete : SudokuGridBackend -> Bool
+isSudokuComplete grid =
+    List.all
         (\row ->
-            if isRowCompleted row then
-                List.map
-                    (\value ->
-                        case value of
-                            Changeable n ->
-                                NotChangeable n
+            List.all
+                (\cell ->
+                    case cell.cellState of
+                        RevealedCell ->
+                            True
 
-                            NotChangeable n ->
-                                NotChangeable n
-                    )
-                    row
+                        Guess val ->
+                            val == cell.value
 
-            else
+                        EmptyCell ->
+                            False
+                )
                 row
         )
-
-
-updateCompletedColumns : SudokuGrid -> SudokuGrid
-updateCompletedColumns grid =
-    List.range 0 8
-        |> List.foldl
-            (\colIndex accGrid ->
-                if
-                    accGrid
-                        |> List.map (\row -> List.drop colIndex row |> List.head |> Maybe.withDefault (Changeable 0))
-                        |> isColumnCompleted
-                then
-                    accGrid
-                        |> List.map
-                            (List.indexedMap
-                                (\cellIndex cell ->
-                                    if cellIndex == colIndex then
-                                        case cell of
-                                            Changeable n ->
-                                                NotChangeable n
-
-                                            NotChangeable n ->
-                                                NotChangeable n
-
-                                    else
-                                        cell
-                                )
-                            )
-
-                else
-                    accGrid
-            )
-            grid
-
-
-updateCompletedSquares : SudokuGrid -> SudokuGrid
-updateCompletedSquares grid =
-    List.range 0 2
-        |> List.foldl
-            (\rowBlock accGrid ->
-                List.range 0 2
-                    |> List.foldl
-                        (\colBlock innerAccGrid ->
-                            let
-                                squareValues =
-                                    getSquareValues (rowBlock * 3) (colBlock * 3) innerAccGrid
-                            in
-                            if isSquareCompleted squareValues then
-                                updateSquare (rowBlock * 3) (colBlock * 3) innerAccGrid
-
-                            else
-                                innerAccGrid
-                        )
-                        accGrid
-            )
-            grid
-
-
-isSudokuComplete : SudokuGrid -> Bool
-isSudokuComplete grid =
-    List.all (List.all (\cell -> cell /= Changeable 0)) grid
+        grid
 
 
 
 -- Helper functions
 
 
-getCell : Int -> Int -> SudokuGrid -> DigitValue
+getCell : Int -> Int -> SudokuGridBackend -> DigitValueBackend
 getCell row col grid =
     grid
         |> List.drop row
         |> List.head
-        |> Maybe.withDefault []
-        |> List.drop col
-        |> List.head
-        |> Maybe.withDefault (Changeable 0)
+        |> Maybe.andThen (List.drop col >> List.head)
+        |> Maybe.withDefault { cellState = EmptyCell, value = 0 }
 
 
-setCell : Int -> Int -> DigitValue -> SudokuGrid -> SudokuGrid
+setCell : Int -> Int -> DigitValueBackend -> SudokuGridBackend -> SudokuGridBackend
 setCell row col value grid =
     List.indexedMap
         (\r rowList ->
@@ -281,7 +209,7 @@ setCell row col value grid =
         grid
 
 
-getSquareValues : Int -> Int -> SudokuGrid -> List DigitValue
+getSquareValues : Int -> Int -> SudokuGridBackend -> List DigitValueBackend
 getSquareValues startRow startCol grid =
     List.range startRow (startRow + 2)
         |> List.concatMap
@@ -294,7 +222,7 @@ getSquareValues startRow startCol grid =
             )
 
 
-updateSquare : Int -> Int -> SudokuGrid -> SudokuGrid
+updateSquare : Int -> Int -> SudokuGridBackend -> SudokuGridBackend
 updateSquare startRow startCol grid =
     List.indexedMap
         (\rowIndex row ->
@@ -302,12 +230,7 @@ updateSquare startRow startCol grid =
                 List.indexedMap
                     (\colIndex cell ->
                         if colIndex >= startCol && colIndex < startCol + 3 then
-                            case cell of
-                                Changeable n ->
-                                    NotChangeable n
-
-                                NotChangeable n ->
-                                    NotChangeable n
+                            { cell | cellState = RevealedCell }
 
                         else
                             cell
@@ -320,49 +243,32 @@ updateSquare startRow startCol grid =
         grid
 
 
-isRowCompleted : List DigitValue -> Bool
+isRowCompleted : List DigitValueBackend -> Bool
 isRowCompleted row =
-    List.map
-        (\value ->
-            case value of
-                Changeable n ->
-                    n
+    List.all
+        (\cell ->
+            case cell.cellState of
+                RevealedCell ->
+                    True
 
-                NotChangeable n ->
-                    n
+                Guess val ->
+                    val == cell.value
+
+                EmptyCell ->
+                    False
         )
         row
-        |> List.sort
-        |> (==) (List.range 1 9)
 
 
-isColumnCompleted : List DigitValue -> Bool
+isColumnCompleted : List DigitValueBackend -> Bool
 isColumnCompleted column =
-    List.map
-        (\value ->
-            case value of
-                Changeable n ->
-                    n
-
-                NotChangeable n ->
-                    n
-        )
-        column
+    List.map .value column
         |> List.sort
         |> (==) (List.range 1 9)
 
 
-isSquareCompleted : List DigitValue -> Bool
+isSquareCompleted : List DigitValueBackend -> Bool
 isSquareCompleted square =
-    List.map
-        (\value ->
-            case value of
-                Changeable n ->
-                    n
-
-                NotChangeable n ->
-                    n
-        )
-        square
+    List.map .value square
         |> List.sort
         |> (==) (List.range 1 9)

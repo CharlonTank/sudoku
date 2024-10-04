@@ -9,6 +9,7 @@ type Color
     | Completed
     | Original
     | Input
+    | Selected
 
 
 toHex : Color -> String
@@ -34,3 +35,6 @@ toHex color =
 
         Input ->
             "#f0f0f0"
+
+        Selected ->
+            "#007bff"

@@ -26,9 +26,7 @@ app =
 init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
     ( { key = key
-      , message = "Welcome to Cooperative Sudoku!"
-      , sudokuGrid = List.repeat 9 (List.repeat 9 (Changeable 0))
-      , userGrid = List.repeat 9 (List.repeat 9 (Changeable 0))
+      , grid = Nothing
       , selectedCell = Nothing
       }
     , Cmd.none
@@ -74,10 +72,10 @@ updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd Frontend
 updateFromBackend msg model =
     case msg of
         NewSudokuGridToFrontend grid ->
-            ( { model | sudokuGrid = grid, userGrid = grid }, Cmd.none )
+            ( { model | grid = Just grid, selectedCell = Nothing }, Cmd.none )
 
         UpdatedUserGridToFrontend grid ->
-            ( { model | userGrid = grid }, Cmd.none )
+            ( { model | grid = Just grid }, Cmd.none )
 
 
 view : FrontendModel -> Browser.Document FrontendMsg
@@ -99,15 +97,20 @@ view model =
                 , Attr.style "text-align" "center"
                 ]
                 [ text "Cooperative Sudoku" ]
-            , viewSudokuGrid model.sudokuGrid model.userGrid model.selectedCell
+            , case model.grid of
+                Just grid ->
+                    viewSudokuGrid grid model.selectedCell
+
+                Nothing ->
+                    text "Loading Sudoku grid..."
             , viewDigitButtons
             ]
         ]
     }
 
 
-viewSudokuGrid : SudokuGrid -> SudokuGrid -> Maybe ( Int, Int ) -> Html FrontendMsg
-viewSudokuGrid originalGrid userGrid selectedCell =
+viewSudokuGrid : SudokuGridFrontend -> Maybe ( Int, Int ) -> Html FrontendMsg
+viewSudokuGrid grid selectedCell =
     div
         [ Attr.style "display" "grid"
         , Attr.style "grid-template-columns" "repeat(9, 1fr)"
@@ -116,40 +119,36 @@ viewSudokuGrid originalGrid userGrid selectedCell =
         , Attr.style "border" "2px solid #333"
         , Attr.style "margin" "0 auto"
         ]
-        (List.concat (List.indexedMap (viewSudokuRow originalGrid userGrid selectedCell) userGrid))
+        (List.concat (List.indexedMap (viewSudokuRow grid selectedCell) grid))
 
 
-viewSudokuRow : SudokuGrid -> SudokuGrid -> Maybe ( Int, Int ) -> Int -> List DigitValue -> List (Html FrontendMsg)
-viewSudokuRow originalGrid userGrid selectedCell rowIndex row =
-    List.indexedMap (viewSudokuCell originalGrid userGrid selectedCell rowIndex) row
+viewSudokuRow : SudokuGridFrontend -> Maybe ( Int, Int ) -> Int -> List CellStateFrontend -> List (Html FrontendMsg)
+viewSudokuRow grid selectedCell rowIndex row =
+    List.indexedMap (viewSudokuCell grid selectedCell rowIndex) row
 
 
-viewSudokuCell : SudokuGrid -> SudokuGrid -> Maybe ( Int, Int ) -> Int -> Int -> DigitValue -> Html FrontendMsg
-viewSudokuCell originalGrid userGrid selectedCell rowIndex colIndex value =
+viewSudokuCell : SudokuGridFrontend -> Maybe ( Int, Int ) -> Int -> Int -> CellStateFrontend -> Html FrontendMsg
+viewSudokuCell grid selectedCell rowIndex colIndex cellState =
     let
         isOriginal =
-            case getCell rowIndex colIndex originalGrid of
-                Just (NotChangeable _) ->
+            case cellState of
+                NotChangeable _ ->
                     True
 
-                Just (Changeable _) ->
+                _ ->
                     False
 
-                Nothing ->
-                    True
-
         isCompleted =
-            isRowCompleted rowIndex userGrid
-                || isColumnCompleted colIndex userGrid
-                || isSquareCompleted rowIndex colIndex userGrid
+            isRowCompleted rowIndex grid
+                || isColumnCompleted colIndex grid
+                || isSquareCompleted rowIndex colIndex grid
 
         isSelected =
             selectedCell == Just ( rowIndex, colIndex )
 
         backgroundColor =
             if isSelected then
-                "#007bff"
-                -- Dark blue for selected cell
+                Color.toHex Color.Selected
 
             else if isCompleted then
                 Color.toHex Color.Completed
@@ -158,15 +157,15 @@ viewSudokuCell originalGrid userGrid selectedCell rowIndex colIndex value =
                 Color.toHex Color.Original
 
             else
-                case value of
+                case cellState of
                     NotChangeable _ ->
                         Color.toHex Color.Input
 
-                    Changeable 0 ->
-                        Color.toHex Color.Background
-
                     Changeable _ ->
                         Color.toHex Color.Input
+
+                    NoValue ->
+                        Color.toHex Color.Background
 
         borderStyle =
             "1px solid #000"
@@ -203,12 +202,15 @@ viewSudokuCell originalGrid userGrid selectedCell rowIndex colIndex value =
                 borderStyle
 
         cellValue =
-            case value of
+            case cellState of
                 NotChangeable n ->
-                    n
+                    String.fromInt n
 
                 Changeable n ->
-                    n
+                    String.fromInt n
+
+                NoValue ->
+                    ""
 
         cellClickHandler =
             if isOriginal then
@@ -254,14 +256,7 @@ viewSudokuCell originalGrid userGrid selectedCell rowIndex colIndex value =
          ]
             ++ cellClickHandler
         )
-        [ text
-            (if cellValue == 0 then
-                ""
-
-             else
-                String.fromInt cellValue
-            )
-        ]
+        [ text cellValue ]
 
 
 viewDigitButtons : Html FrontendMsg
@@ -291,47 +286,53 @@ viewDigitButtons =
         )
 
 
-isRowCompleted : Int -> SudokuGrid -> Bool
+isRowCompleted : Int -> SudokuGridFrontend -> Bool
 isRowCompleted rowIndex grid =
     grid
         |> List.drop rowIndex
         |> List.head
         |> Maybe.withDefault []
         |> List.map
-            (\digit ->
-                case digit of
+            (\cellState ->
+                case cellState of
                     NotChangeable n ->
                         n
 
                     Changeable n ->
                         n
+
+                    NoValue ->
+                        0
             )
         |> List.sort
         |> (==) (List.range 1 9)
 
 
-isColumnCompleted : Int -> SudokuGrid -> Bool
+isColumnCompleted : Int -> SudokuGridFrontend -> Bool
 isColumnCompleted colIndex grid =
     grid
         |> List.map
             (\row ->
                 List.drop colIndex row
                     |> List.head
-                    |> Maybe.withDefault (Changeable 0)
-                    |> (\digit ->
-                            case digit of
+                    |> Maybe.withDefault NoValue
+                    |> (\cellState ->
+                            case cellState of
                                 NotChangeable n ->
                                     n
 
                                 Changeable n ->
                                     n
+
+                                NoValue ->
+                                    0
                        )
             )
         |> List.sort
         |> (==) (List.range 1 9)
 
 
-isSquareCompleted : Int -> Int -> SudokuGrid -> Bool
+isSquareCompleted : Int -> Int -> SudokuGridFrontend -> Bool
 isSquareCompleted rowIndex colIndex grid =
     let
         squareStartRow =
@@ -351,42 +352,24 @@ isSquareCompleted rowIndex colIndex grid =
                                 )
                     )
                 |> List.map
-                    (\digit ->
-                        case digit of
+                    (\cellState ->
+                        case cellState of
                             NotChangeable n ->
                                 n
 
                             Changeable n ->
                                 n
+
+                            NoValue ->
+                                0
                     )
     in
     List.sort squareValues == List.range 1 9
 
 
-getCell : Int -> Int -> SudokuGrid -> Maybe DigitValue
+getCell : Int -> Int -> SudokuGridFrontend -> Maybe CellStateFrontend
 getCell row col grid =
     grid
         |> List.drop row
         |> List.head
         |> Maybe.andThen (List.drop col >> List.head)
-
-
-updateGrid : Int -> Int -> Int -> SudokuGrid -> SudokuGrid
-updateGrid row col value grid =
-    List.indexedMap
-        (\r rowList ->
-            if r == row then
-                List.indexedMap
-                    (\c cellValue ->
-                        if c == col then
-                            Changeable value
-
-                        else
-                            cellValue
-                    )
-                    rowList
-
-            else
-                rowList
-        )
-        grid

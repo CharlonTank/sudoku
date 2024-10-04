@@ -1,5 +1,6 @@
 module Backend exposing (..)
 
+import Debuggy.App
 import Lamdera exposing (ClientId, SessionId, broadcast, sendToFrontend)
 import Random
 import SudokuLogic
@@ -9,7 +10,8 @@ import Types exposing (..)
 
 
 app =
-    Lamdera.backend
+    Debuggy.App.backend NoOpBackendMsg
+        "pMkQtH6Tx30zVTou"
         { init = init
         , update = update
         , updateFromFrontend = updateFromFrontend
@@ -19,9 +21,7 @@ app =
 
 init : ( BackendModel, Cmd BackendMsg )
 init =
-    ( { message = "Hello!"
-      , sudokuGrid = List.repeat 9 (List.repeat 9 (Changeable 0))
-      , userGrid = List.repeat 9 (List.repeat 9 (Changeable 0))
+    ( { grid = Nothing
       , seed = Random.initialSeed 0
       }
     , Task.perform (\posix -> InitialTime (Time.posixToMillis posix)) Time.now
@@ -42,16 +42,21 @@ update msg model =
         NewSudokuGridBackendMsg grid newSeed ->
             let
                 newModel =
-                    { model | sudokuGrid = grid, userGrid = grid, seed = newSeed }
+                    { model | grid = Just grid, seed = newSeed }
             in
             ( newModel
-            , broadcast (NewSudokuGridToFrontend grid)
+            , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
             )
 
         OnConnect sessionId clientId ->
-            ( model
-            , sendToFrontend clientId (NewSudokuGridToFrontend model.userGrid)
-            )
+            case model.grid of
+                Just grid ->
+                    ( model
+                    , sendToFrontend clientId (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         InitialTime time ->
             let
@@ -61,8 +66,8 @@ update msg model =
                 ( newGrid, newSeed ) =
                     SudokuLogic.generateSudoku initialSeed
             in
-            ( { model | sudokuGrid = newGrid, userGrid = newGrid, seed = newSeed }
-            , broadcast (NewSudokuGridToFrontend newGrid)
+            ( { model | grid = Just newGrid, seed = newSeed }
+            , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend newGrid))
             )
 
 
@@ -70,48 +75,46 @@ updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( Bac
 updateFromFrontend sessionId clientId msg model =
     case msg of
         UpdateCell row col value ->
-            let
-                currentCell =
-                    model.userGrid
-                        |> List.drop row
-                        |> List.head
-                        |> Maybe.andThen (List.drop col >> List.head)
-                        |> Maybe.withDefault (Changeable 0)
-            in
-            case currentCell of
-                NotChangeable _ ->
-                    -- If the cell is not changeable, don't update it
-                    ( model, Cmd.none )
+            model.grid
+                |> Maybe.map
+                    (\grid ->
+                        case
+                            List.drop row grid
+                                |> List.head
+                                |> Maybe.andThen (List.drop col >> List.head)
+                        of
+                            Just cell ->
+                                case cell.cellState of
+                                    RevealedCell ->
+                                        ( model, Cmd.none )
 
-                Changeable _ ->
-                    let
-                        newUserGrid =
-                            updateGrid row col (Changeable value) model.userGrid
+                                    _ ->
+                                        let
+                                            newGrid =
+                                                updateGrid row col { cellState = Guess value, value = cell.value } grid
 
-                        updatedGrid =
-                            SudokuLogic.updateCompletedSections newUserGrid
+                                            newModel =
+                                                { model | grid = Just newGrid }
+                                        in
+                                        if SudokuLogic.isSudokuComplete newGrid then
+                                            let
+                                                ( brandNewGrid, newSeed ) =
+                                                    SudokuLogic.generateSudoku model.seed
+                                            in
+                                            ( { newModel | grid = Just brandNewGrid, seed = newSeed }
+                                            , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend brandNewGrid))
+                                            )
 
-                        newModel =
-                            { model | userGrid = updatedGrid }
+                                        else
+                                            ( newModel, broadcast (UpdatedUserGridToFrontend (sudokuGridToFrontend newGrid)) )
 
-                        cmd =
-                            if SudokuLogic.isSudokuComplete updatedGrid then
-                                let
-                                    ( newGrid, newSeed ) =
-                                        SudokuLogic.generateSudoku model.seed
-                                in
-                                Cmd.batch
-                                    [ broadcast (NewSudokuGridToFrontend newGrid)
-                                    , Random.generate (\_ -> NoOpBackendMsg) (Random.constant newSeed)
-                                    ]
-
-                            else
-                                broadcast (UpdatedUserGridToFrontend updatedGrid)
-                    in
-                    ( newModel, cmd )
+                            Nothing ->
+                                ( model, Cmd.none )
+                    )
+                |> Maybe.withDefault ( model, Cmd.none )
 
 
-updateGrid : Int -> Int -> DigitValue -> SudokuGrid -> SudokuGrid
+updateGrid : Int -> Int -> DigitValueBackend -> SudokuGridBackend -> SudokuGridBackend
 updateGrid row col value grid =
     List.indexedMap
         (\r rowList ->
