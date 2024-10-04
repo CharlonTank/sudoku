@@ -1,6 +1,5 @@
 module Backend exposing (..)
 
-import Debuggy.App
 import Lamdera exposing (ClientId, SessionId, broadcast, sendToFrontend)
 import Random
 import SudokuLogic
@@ -10,8 +9,7 @@ import Types exposing (..)
 
 
 app =
-    Debuggy.App.backend NoOpBackendMsg
-        "pMkQtH6Tx30zVTou"
+    Lamdera.backend
         { init = init
         , update = update
         , updateFromFrontend = updateFromFrontend
