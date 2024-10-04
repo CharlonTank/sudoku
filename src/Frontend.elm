@@ -7,9 +7,7 @@ import Html exposing (..)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick)
 import Json.Decode as Json
-import Json.Decode.Pipeline as JsonPipeline
 import Lamdera
-import Palette.Color as Color
 import SudokuLogic
 import Types exposing (..)
 import Url
