@@ -1,5 +1,6 @@
 module Evergreen.Migrate.V2 exposing (..)
 
+import Evergreen.V1.Types as Old
 import Evergreen.V2.Types as New
 import Lamdera.Migrations exposing (..)
 
