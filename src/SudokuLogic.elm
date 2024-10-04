@@ -1,12 +1,17 @@
 module SudokuLogic exposing
     ( generateSudoku
+    , isColumnCompleted
+    , isRowCompleted
+    , isSquareCompleted
     , isSudokuComplete
     , isValid
+    , sudokuGridToFrontend
+    , updateGrid
     )
 
 import List.Extra
 import Random
-import Types exposing (CellStateBackend(..), DigitValueBackend, SudokuGridBackend)
+import Types exposing (..)
 
 
 generateSudoku : Random.Seed -> ( SudokuGridBackend, Random.Seed )
@@ -209,66 +214,129 @@ setCell row col value grid =
         grid
 
 
-getSquareValues : Int -> Int -> SudokuGridBackend -> List DigitValueBackend
-getSquareValues startRow startCol grid =
-    List.range startRow (startRow + 2)
-        |> List.concatMap
-            (\row ->
-                List.range startCol (startCol + 2)
-                    |> List.map
-                        (\col ->
-                            getCell row col grid
-                        )
+isRowCompleted : Int -> SudokuGridFrontend -> Bool
+isRowCompleted rowIndex grid =
+    grid
+        |> List.drop rowIndex
+        |> List.head
+        |> Maybe.withDefault []
+        |> List.map
+            (\cellState ->
+                case cellState of
+                    NotChangeable n ->
+                        n
+
+                    Changeable n ->
+                        n
+
+                    NoValue ->
+                        0
             )
+        |> List.sort
+        |> (==) (List.range 1 9)
 
 
-updateSquare : Int -> Int -> SudokuGridBackend -> SudokuGridBackend
-updateSquare startRow startCol grid =
+isColumnCompleted : Int -> SudokuGridFrontend -> Bool
+isColumnCompleted colIndex grid =
+    grid
+        |> List.map
+            (\row ->
+                List.drop colIndex row
+                    |> List.head
+                    |> Maybe.withDefault NoValue
+                    |> (\cellState ->
+                            case cellState of
+                                NotChangeable n ->
+                                    n
+
+                                Changeable n ->
+                                    n
+
+                                NoValue ->
+                                    0
+                       )
+            )
+        |> List.sort
+        |> (==) (List.range 1 9)
+
+
+isSquareCompleted : Int -> Int -> SudokuGridFrontend -> Bool
+isSquareCompleted rowIndex colIndex grid =
+    let
+        squareStartRow =
+            rowIndex // 3 * 3
+
+        squareStartCol =
+            colIndex // 3 * 3
+
+        squareValues =
+            List.range 0 2
+                |> List.concatMap
+                    (\r ->
+                        List.range 0 2
+                            |> List.filterMap
+                                (\c ->
+                                    getCellFrontend (squareStartRow + r) (squareStartCol + c) grid
+                                )
+                    )
+                |> List.map
+                    (\cellState ->
+                        case cellState of
+                            NotChangeable n ->
+                                n
+
+                            Changeable n ->
+                                n
+
+                            NoValue ->
+                                0
+                    )
+    in
+    List.sort squareValues == List.range 1 9
+
+
+getCellFrontend : Int -> Int -> SudokuGridFrontend -> Maybe CellStateFrontend
+getCellFrontend row col grid =
+    grid
+        |> List.drop row
+        |> List.head
+        |> Maybe.andThen (List.drop col >> List.head)
+
+
+updateGrid : Int -> Int -> DigitValueBackend -> SudokuGridBackend -> SudokuGridBackend
+updateGrid row col value grid =
     List.indexedMap
-        (\rowIndex row ->
-            if rowIndex >= startRow && rowIndex < startRow + 3 then
+        (\r rowList ->
+            if r == row then
                 List.indexedMap
-                    (\colIndex cell ->
-                        if colIndex >= startCol && colIndex < startCol + 3 then
-                            { cell | cellState = RevealedCell }
+                    (\c cellValue ->
+                        if c == col then
+                            value
 
                         else
-                            cell
+                            cellValue
                     )
-                    row
+                    rowList
 
             else
-                row
+                rowList
         )
         grid
 
 
-isRowCompleted : List DigitValueBackend -> Bool
-isRowCompleted row =
-    List.all
-        (\cell ->
-            case cell.cellState of
-                RevealedCell ->
-                    True
-
-                Guess val ->
-                    val == cell.value
-
-                EmptyCell ->
-                    False
-        )
-        row
+sudokuGridToFrontend : SudokuGridBackend -> SudokuGridFrontend
+sudokuGridToFrontend =
+    List.map (List.map cellStateToFrontend)
 
 
-isColumnCompleted : List DigitValueBackend -> Bool
-isColumnCompleted column =
-    List.map .value column
-        |> List.sort
-        |> (==) (List.range 1 9)
+cellStateToFrontend : DigitValueBackend -> CellStateFrontend
+cellStateToFrontend { cellState, value } =
+    case cellState of
+        RevealedCell ->
+            NotChangeable value
 
+        Guess guessValue ->
+            Changeable guessValue
 
-isSquareCompleted : List DigitValueBackend -> Bool
-isSquareCompleted square =
-    List.map .value square
-        |> List.sort
-        |> (==) (List.range 1 9)
+        EmptyCell ->
+            NoValue

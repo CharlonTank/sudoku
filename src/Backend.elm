@@ -89,7 +89,7 @@ updateFromFrontend sessionId clientId msg model =
                                     _ ->
                                         let
                                             newGrid =
-                                                updateGrid row col { cellState = Guess value, value = cell.value } grid
+                                                SudokuLogic.updateGrid row col { cellState = Guess value, value = cell.value } grid
 
                                             newModel =
                                                 { model | grid = Just newGrid }
@@ -100,11 +100,11 @@ updateFromFrontend sessionId clientId msg model =
                                                     SudokuLogic.generateSudoku model.seed
                                             in
                                             ( { newModel | grid = Just brandNewGrid, seed = newSeed }
-                                            , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend brandNewGrid))
+                                            , broadcast (NewSudokuGridToFrontend (SudokuLogic.sudokuGridToFrontend brandNewGrid))
                                             )
 
                                         else
-                                            ( newModel, broadcast (UpdatedUserGridToFrontend (sudokuGridToFrontend newGrid)) )
+                                            ( newModel, broadcast (UpdatedUserGridToFrontend (SudokuLogic.sudokuGridToFrontend newGrid)) )
 
                             Nothing ->
                                 ( model, Cmd.none )
@@ -112,22 +112,19 @@ updateFromFrontend sessionId clientId msg model =
                 |> Maybe.withDefault ( model, Cmd.none )
 
 
-updateGrid : Int -> Int -> DigitValueBackend -> SudokuGridBackend -> SudokuGridBackend
-updateGrid row col value grid =
-    List.indexedMap
-        (\r rowList ->
-            if r == row then
-                List.indexedMap
-                    (\c cellValue ->
-                        if c == col then
-                            value
+sudokuGridToFrontend : SudokuGridBackend -> SudokuGridFrontend
+sudokuGridToFrontend =
+    List.map (List.map cellStateToFrontend)
 
-                        else
-                            cellValue
-                    )
-                    rowList
 
-            else
-                rowList
-        )
-        grid
+cellStateToFrontend : DigitValueBackend -> CellStateFrontend
+cellStateToFrontend { cellState, value } =
+    case cellState of
+        RevealedCell ->
+            NotChangeable value
+
+        Guess guessValue ->
+            Changeable guessValue
+
+        EmptyCell ->
+            NoValue

@@ -50,6 +50,7 @@ type FrontendMsg
     | NoOpFrontendMsg
     | SelectCell Int Int
     | InputDigit Int
+    | KeyPressed String
 
 
 type ToBackend
