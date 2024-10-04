@@ -209,36 +209,51 @@ viewSudokuCell originalGrid userGrid selectedCell rowIndex colIndex value =
 
                 Changeable n ->
                     n
+
+        cellClickHandler =
+            if isOriginal then
+                []
+
+            else
+                [ onClick (SelectCell rowIndex colIndex) ]
     in
     div
-        [ Attr.style "width" "100%"
-        , Attr.style "height" "100%"
-        , Attr.style "display" "flex"
-        , Attr.style "justify-content" "center"
-        , Attr.style "align-items" "center"
-        , Attr.style "font-size" "clamp(16px, 4vw, 24px)"
-        , Attr.style "font-weight"
+        ([ Attr.style "width" "100%"
+         , Attr.style "height" "100%"
+         , Attr.style "display" "flex"
+         , Attr.style "justify-content" "center"
+         , Attr.style "align-items" "center"
+         , Attr.style "font-size" "clamp(16px, 4vw, 24px)"
+         , Attr.style "font-weight"
             (if isOriginal then
                 "bold"
 
              else
                 "normal"
             )
-        , Attr.style "background-color" backgroundColor
-        , Attr.style "border-right" borderRight
-        , Attr.style "border-bottom" borderBottom
-        , Attr.style "border-top" borderTop
-        , Attr.style "border-left" borderLeft
-        , Attr.style "box-sizing" "border-box"
-        , Attr.style "color"
+         , Attr.style "background-color" backgroundColor
+         , Attr.style "border-right" borderRight
+         , Attr.style "border-bottom" borderBottom
+         , Attr.style "border-top" borderTop
+         , Attr.style "border-left" borderLeft
+         , Attr.style "box-sizing" "border-box"
+         , Attr.style "color"
             (if isSelected then
                 "white"
 
              else
                 "black"
             )
-        , onClick (SelectCell rowIndex colIndex)
-        ]
+         , Attr.style "cursor"
+            (if isOriginal then
+                "not-allowed"
+
+             else
+                "pointer"
+            )
+         ]
+            ++ cellClickHandler
+        )
         [ text
             (if cellValue == 0 then
                 ""
@@ -252,18 +267,24 @@ viewSudokuCell originalGrid userGrid selectedCell rowIndex colIndex value =
 viewDigitButtons : Html FrontendMsg
 viewDigitButtons =
     div
-        [ Attr.style "display" "flex"
-        , Attr.style "justify-content" "center"
-        , Attr.style "margin-top" "20px"
+        [ Attr.style "display" "grid"
+        , Attr.style "grid-template-columns" "repeat(3, 1fr)"
+        , Attr.style "gap" "10px"
+        , Attr.style "width" "min(90vw, 300px)"
+        , Attr.style "margin" "20px auto 0"
         ]
         (List.range 1 9
             |> List.map
                 (\digit ->
                     button
                         [ onClick (InputDigit digit)
-                        , Attr.style "margin" "0 5px"
-                        , Attr.style "padding" "10px 15px"
-                        , Attr.style "font-size" "18px"
+                        , Attr.style "padding" "10px"
+                        , Attr.style "font-size" "clamp(16px, 4vw, 24px)"
+                        , Attr.style "width" "100%"
+                        , Attr.style "aspect-ratio" "1 / 1"
+                        , Attr.style "border" "1px solid #ccc"
+                        , Attr.style "background-color" "#f0f0f0"
+                        , Attr.style "cursor" "pointer"
                         ]
                         [ text (String.fromInt digit) ]
                 )
