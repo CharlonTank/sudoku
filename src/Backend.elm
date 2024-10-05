@@ -73,43 +73,51 @@ updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( Bac
 updateFromFrontend sessionId clientId msg model =
     case msg of
         UpdateCell row col value ->
-            model.grid
-                |> Maybe.map
-                    (\grid ->
-                        case
-                            List.drop row grid
-                                |> List.head
-                                |> Maybe.andThen (List.drop col >> List.head)
-                        of
-                            Just cell ->
-                                case cell.cellState of
-                                    RevealedCell ->
-                                        ( model, Cmd.none )
+            handleCellUpdate row col (Guess value) model
 
-                                    _ ->
-                                        let
-                                            newGrid =
-                                                SudokuLogic.updateGrid row col { cellState = Guess value, value = cell.value } grid
+        RemoveCellValue row col ->
+            handleCellUpdate row col EmptyCell model
 
-                                            newModel =
-                                                { model | grid = Just newGrid }
-                                        in
-                                        if SudokuLogic.isSudokuComplete newGrid then
-                                            let
-                                                ( brandNewGrid, newSeed ) =
-                                                    SudokuLogic.generateSudoku model.seed
-                                            in
-                                            ( { newModel | grid = Just brandNewGrid, seed = newSeed }
-                                            , broadcast (NewSudokuGridToFrontend (SudokuLogic.sudokuGridToFrontend brandNewGrid))
-                                            )
 
-                                        else
-                                            ( newModel, broadcast (UpdatedUserGridToFrontend (SudokuLogic.sudokuGridToFrontend newGrid)) )
-
-                            Nothing ->
+handleCellUpdate : Int -> Int -> CellStateBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
+handleCellUpdate row col newCellState model =
+    model.grid
+        |> Maybe.map
+            (\grid ->
+                case
+                    List.drop row grid
+                        |> List.head
+                        |> Maybe.andThen (List.drop col >> List.head)
+                of
+                    Just cell ->
+                        case cell.cellState of
+                            RevealedCell ->
                                 ( model, Cmd.none )
-                    )
-                |> Maybe.withDefault ( model, Cmd.none )
+
+                            _ ->
+                                let
+                                    newGrid =
+                                        SudokuLogic.updateGrid row col { cellState = newCellState, value = cell.value } grid
+
+                                    newModel =
+                                        { model | grid = Just newGrid }
+                                in
+                                if SudokuLogic.isSudokuComplete newGrid then
+                                    let
+                                        ( brandNewGrid, newSeed ) =
+                                            SudokuLogic.generateSudoku model.seed
+                                    in
+                                    ( { newModel | grid = Just brandNewGrid, seed = newSeed }
+                                    , broadcast (NewSudokuGridToFrontend (SudokuLogic.sudokuGridToFrontend brandNewGrid))
+                                    )
+
+                                else
+                                    ( newModel, broadcast (UpdatedUserGridToFrontend (SudokuLogic.sudokuGridToFrontend newGrid)) )
+
+                    Nothing ->
+                        ( model, Cmd.none )
+            )
+        |> Maybe.withDefault ( model, Cmd.none )
 
 
 sudokuGridToFrontend : SudokuGridBackend -> SudokuGridFrontend

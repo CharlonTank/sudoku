@@ -1,4 +1,4 @@
-module Evergreen.V1.Types exposing (..)
+module Evergreen.V2.Types exposing (..)
 
 import Browser
 import Browser.Navigation
@@ -53,10 +53,12 @@ type FrontendMsg
     | SelectCell Int Int
     | InputDigit Int
     | KeyPressed String
+    | RemoveGuess
 
 
 type ToBackend
     = UpdateCell Int Int Int
+    | RemoveCellValue Int Int
 
 
 type BackendMsg
