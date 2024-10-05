@@ -202,12 +202,12 @@ viewSudokuGrid grid selectedCell =
     div
         [ Attr.style "display" "grid"
         , Attr.style "grid-template-columns" "repeat(9, 1fr)"
-        , Attr.style "gap" "1px"
+        , Attr.style "gap" "0" -- Changed from "1px" to "0"
         , Attr.style "width" "100%"
         , Attr.style "aspect-ratio" "1 / 1"
-        , Attr.style "border" "2px solid #333"
         , Attr.style "margin" "0 auto 20px"
-        , Attr.style "background-color" "#333"
+
+        -- Removed the border style from here
         ]
         (List.concat (List.indexedMap (viewSudokuRow grid selectedCell) grid))
 
@@ -259,8 +259,8 @@ viewSudokuCell grid selectedCell rowIndex colIndex cellState =
             else
                 "#666666"
 
-        borderStyle =
-            "1px solid #7f8c8d"
+        simpleBorderStyle =
+            "1px solid #d0d0d0"
 
         thickBorderStyle =
             "2px solid #2c3e50"
@@ -270,28 +270,34 @@ viewSudokuCell grid selectedCell rowIndex colIndex cellState =
                 thickBorderStyle
 
             else
-                borderStyle
+                simpleBorderStyle
 
         borderBottom =
             if modBy 3 (rowIndex + 1) == 0 then
                 thickBorderStyle
 
             else
-                borderStyle
+                simpleBorderStyle
 
         borderTop =
-            if rowIndex == 0 || modBy 3 rowIndex == 0 then
+            if rowIndex == 0 then
+                thickBorderStyle
+
+            else if modBy 3 rowIndex == 0 then
                 thickBorderStyle
 
             else
-                borderStyle
+                simpleBorderStyle
 
         borderLeft =
-            if colIndex == 0 || modBy 3 colIndex == 0 then
+            if colIndex == 0 then
+                thickBorderStyle
+
+            else if modBy 3 colIndex == 0 then
                 thickBorderStyle
 
             else
-                borderStyle
+                simpleBorderStyle
 
         cellValue =
             case cellState of
@@ -335,6 +341,11 @@ viewSudokuCell grid selectedCell rowIndex colIndex cellState =
                 "pointer"
             )
          , Attr.style "user-select" "none"
+         , Attr.style "border-right" borderRight
+         , Attr.style "border-bottom" borderBottom
+         , Attr.style "border-top" borderTop
+         , Attr.style "border-left" borderLeft
+         , Attr.style "box-sizing" "border-box"
          ]
             ++ cellClickHandler
         )
