@@ -5,7 +5,7 @@ import Browser.Events
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes as Attr
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onMouseDown)
 import Json.Decode as Json
 import Json.Decode.Pipeline as JsonPipeline
 import Lamdera
@@ -71,16 +71,36 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        KeyPressed key ->
-            case ( model.selectedCell, String.toInt key ) of
-                ( Just ( row, col ), Just digit ) ->
-                    if digit >= 1 && digit <= 9 then
-                        ( model
-                        , Lamdera.sendToBackend (UpdateCell row col digit)
-                        )
+        RemoveGuess ->
+            case model.selectedCell of
+                Just ( row, col ) ->
+                    ( model
+                    , Lamdera.sendToBackend (RemoveCellValue row col)
+                    )
 
-                    else
-                        ( model, Cmd.none )
+                Nothing ->
+                    ( model, Cmd.none )
+
+        KeyPressed key ->
+            case ( model.selectedCell, key ) of
+                ( Just ( row, col ), "Backspace" ) ->
+                    ( model
+                    , Lamdera.sendToBackend (RemoveCellValue row col)
+                    )
+
+                ( Just ( row, col ), digit ) ->
+                    case String.toInt digit of
+                        Just n ->
+                            if n >= 1 && n <= 9 then
+                                ( model
+                                , Lamdera.sendToBackend (UpdateCell row col n)
+                                )
+
+                            else
+                                ( model, Cmd.none )
+
+                        Nothing ->
+                            ( model, Cmd.none )
 
                 _ ->
                     ( model, Cmd.none )
@@ -100,7 +120,7 @@ subscriptions : FrontendModel -> Sub FrontendMsg
 subscriptions model =
     case model.selectedCell of
         Just _ ->
-            Browser.Events.onKeyPress (Json.map KeyPressed (Json.field "key" Json.string))
+            Browser.Events.onKeyDown (Json.map KeyPressed (Json.field "key" Json.string))
 
         Nothing ->
             Sub.none
@@ -291,7 +311,7 @@ viewSudokuCell grid selectedCell rowIndex colIndex cellState =
                 []
 
             else
-                [ onClick (SelectCell rowIndex colIndex) ]
+                [ onMouseDown (SelectCell rowIndex colIndex) ]
     in
     div
         ([ Attr.style "width" "100%"
@@ -331,7 +351,7 @@ viewDigitButtons =
         , Attr.style "width" "100%"
         , Attr.style "margin-top" "20px"
         ]
-        (List.range 1 9
+        ((List.range 1 9
             |> List.map
                 (\digit ->
                     button
@@ -348,4 +368,19 @@ viewDigitButtons =
                         ]
                         [ text (String.fromInt digit) ]
                 )
+         )
+            ++ [ button
+                    [ onClick RemoveGuess
+                    , Attr.style "flex" "1"
+                    , Attr.style "padding" "10px 0"
+                    , Attr.style "font-size" "16px"
+                    , Attr.style "border" "none"
+                    , Attr.style "background-color" "#e0e0e0"
+                    , Attr.style "color" "#333"
+                    , Attr.style "cursor" "pointer"
+                    , Attr.style "margin" "0 2px"
+                    , Attr.style "border-radius" "4px"
+                    ]
+                    [ text "X" ]
+               ]
         )
