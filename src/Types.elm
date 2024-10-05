@@ -51,10 +51,12 @@ type FrontendMsg
     | SelectCell Int Int
     | InputDigit Int
     | KeyPressed String
+    | RemoveGuess
 
 
 type ToBackend
     = UpdateCell Int Int Int
+    | RemoveCellValue Int Int
 
 
 type BackendMsg
