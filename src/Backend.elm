@@ -21,6 +21,7 @@ init : ( BackendModel, Cmd BackendMsg )
 init =
     ( { grid = Nothing
       , seed = Random.initialSeed 0
+      , connectedSessions = []
       }
     , Task.perform (\posix -> InitialTime (Time.posixToMillis posix)) Time.now
     )
@@ -28,7 +29,10 @@ init =
 
 subscriptions : BackendModel -> Sub BackendMsg
 subscriptions model =
-    Lamdera.onConnect OnConnect
+    Sub.batch
+        [ Lamdera.onConnect ClientConnected
+        , Lamdera.onDisconnect ClientDisconnected
+        ]
 
 
 update : BackendMsg -> BackendModel -> ( BackendModel, Cmd BackendMsg )
@@ -46,15 +50,36 @@ update msg model =
             , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
             )
 
-        OnConnect _ clientId ->
-            case model.grid of
-                Just grid ->
-                    ( model
-                    , sendToFrontend clientId (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
-                    )
+        ClientConnected sessionId clientId ->
+            if List.member sessionId model.connectedSessions then
+                -- Session already connected, no need to update
+                ( model, Cmd.none )
 
-                Nothing ->
-                    ( model, Cmd.none )
+            else
+                let
+                    newModel =
+                        { model | connectedSessions = sessionId :: model.connectedSessions }
+                in
+                ( newModel
+                , Cmd.batch
+                    [ broadcast (ConnectedSessionsChanged newModel.connectedSessions)
+                    , case model.grid of
+                        Just grid ->
+                            sendToFrontend clientId (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
+
+                        Nothing ->
+                            Cmd.none
+                    ]
+                )
+
+        ClientDisconnected sessionId clientId ->
+            let
+                newModel =
+                    { model | connectedSessions = List.filter (\id -> id /= sessionId) model.connectedSessions }
+            in
+            ( newModel
+            , broadcast (ConnectedSessionsChanged newModel.connectedSessions)
+            )
 
         InitialTime time ->
             let

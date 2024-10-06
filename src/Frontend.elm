@@ -7,7 +7,7 @@ import Html exposing (..)
 import Html.Attributes as Attr
 import Html.Events exposing (onClick, onMouseDown)
 import Json.Decode as Json
-import Lamdera
+import Lamdera exposing (SessionId)
 import List.Extra
 import Palette.Color as Color
 import SudokuLogic
@@ -32,6 +32,7 @@ init url key =
     ( { key = key
       , grid = Nothing
       , selectedCell = Nothing
+      , connectedSessions = []
       }
     , Cmd.none
     )
@@ -124,6 +125,9 @@ updateFromBackend msg model =
         UpdatedUserGridToFrontend grid ->
             ( { model | grid = Just grid }, Cmd.none )
 
+        ConnectedSessionsChanged sessions ->
+            ( { model | connectedSessions = sessions }, Cmd.none )
+
 
 subscriptions : FrontendModel -> Sub FrontendMsg
 subscriptions model =
@@ -183,6 +187,7 @@ view model =
                         viewLoadingSpinner
                 , viewDigitButtons
                 ]
+            , viewConnectedSessions model.connectedSessions
             ]
         ]
     }
@@ -443,3 +448,25 @@ viewDigitButtons =
                     [ text "X" ]
                ]
         )
+
+
+viewConnectedSessions : List SessionId -> Html FrontendMsg
+viewConnectedSessions sessions =
+    div
+        [ Attr.style "margin-top" "20px"
+        , Attr.style "color" (Color.toHex Color.Text)
+        , Attr.style "font-size" "14px"
+        , Attr.style "display" "flex"
+        , Attr.style "flex-direction" "column"
+        , Attr.style "align-items" "flex-start"
+        ]
+        ([ div [ Attr.style "font-weight" "bold", Attr.style "margin-bottom" "5px" ] [ text "Connected players:" ] ]
+            ++ List.map viewSessionId sessions
+        )
+
+
+viewSessionId : SessionId -> Html FrontendMsg
+viewSessionId sessionId =
+    div
+        [ Attr.style "margin-bottom" "3px" ]
+        [ text (String.left 4 sessionId) ]

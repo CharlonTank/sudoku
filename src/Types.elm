@@ -35,12 +35,14 @@ type alias FrontendModel =
     { key : Key
     , grid : Maybe SudokuGridFrontend
     , selectedCell : Maybe Position
+    , connectedSessions : List SessionId
     }
 
 
 type alias BackendModel =
     { grid : Maybe SudokuGridBackend
     , seed : Random.Seed
+    , connectedSessions : List SessionId
     }
 
 
@@ -62,13 +64,15 @@ type ToBackend
 type BackendMsg
     = NoOpBackendMsg
     | NewSudokuGridBackendMsg SudokuGridBackend Random.Seed
-    | OnConnect SessionId ClientId
+    | ClientConnected SessionId ClientId
+    | ClientDisconnected SessionId ClientId
     | InitialTime Int
 
 
 type ToFrontend
     = NewSudokuGridToFrontend SudokuGridFrontend
     | UpdatedUserGridToFrontend SudokuGridFrontend
+    | ConnectedSessionsChanged (List SessionId)
 
 
 cellStateToFrontend : DigitValueBackend -> CellStateFrontend
