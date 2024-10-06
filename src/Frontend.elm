@@ -8,6 +8,8 @@ import Html.Attributes as Attr
 import Html.Events exposing (onClick, onMouseDown)
 import Json.Decode as Json
 import Lamdera
+import List.Extra
+import Palette.Color as Color
 import SudokuLogic
 import Types exposing (..)
 import Url
@@ -57,13 +59,20 @@ update msg model =
             ( model, Cmd.none )
 
         SelectCell row col ->
-            ( { model | selectedCell = Just ( row, col ) }, Cmd.none )
+            let
+                position : Position
+                position =
+                    ( row, col )
+            in
+            ( { model | selectedCell = Just position }
+            , Cmd.none
+            )
 
         InputDigit digit ->
             case model.selectedCell of
-                Just ( row, col ) ->
+                Just position ->
                     ( model
-                    , Lamdera.sendToBackend (UpdateCell row col digit)
+                    , Lamdera.sendToBackend (UpdateCell position digit)
                     )
 
                 Nothing ->
@@ -71,36 +80,38 @@ update msg model =
 
         RemoveGuess ->
             case model.selectedCell of
-                Just ( row, col ) ->
+                Just position ->
                     ( model
-                    , Lamdera.sendToBackend (RemoveCellValue row col)
+                    , Lamdera.sendToBackend (RemoveCellValue position)
                     )
 
                 Nothing ->
                     ( model, Cmd.none )
 
         KeyPressed key ->
-            case ( model.selectedCell, key ) of
-                ( Just ( row, col ), "Backspace" ) ->
-                    ( model
-                    , Lamdera.sendToBackend (RemoveCellValue row col)
-                    )
+            case model.selectedCell of
+                Just position ->
+                    case key of
+                        "Backspace" ->
+                            ( model
+                            , Lamdera.sendToBackend (RemoveCellValue position)
+                            )
 
-                ( Just ( row, col ), digit ) ->
-                    case String.toInt digit of
-                        Just n ->
-                            if n >= 1 && n <= 9 then
-                                ( model
-                                , Lamdera.sendToBackend (UpdateCell row col n)
-                                )
+                        digit ->
+                            case String.toInt digit of
+                                Just n ->
+                                    if n >= 1 && n <= 9 then
+                                        ( model
+                                        , Lamdera.sendToBackend (UpdateCell position n)
+                                        )
 
-                            else
-                                ( model, Cmd.none )
+                                    else
+                                        ( model, Cmd.none )
 
-                        Nothing ->
-                            ( model, Cmd.none )
+                                Nothing ->
+                                    ( model, Cmd.none )
 
-                _ ->
+                Nothing ->
                     ( model, Cmd.none )
 
 
@@ -135,7 +146,7 @@ view model =
             , Attr.style "justify-content" "flex-start"
             , Attr.style "height" "100vh"
             , Attr.style "width" "100vw"
-            , Attr.style "background" "#f0f4f8"
+            , Attr.style "background" (Color.toHex Color.Background)
             , Attr.style "font-family" "Arial, sans-serif"
             , Attr.style "overflow" "hidden"
             , Attr.style "position" "fixed"
@@ -145,7 +156,7 @@ view model =
             , Attr.style "box-sizing" "border-box"
             ]
             [ h1
-                [ Attr.style "color" "#333"
+                [ Attr.style "color" (Color.toHex Color.Text)
                 , Attr.style "font-size" "24px"
                 , Attr.style "text-align" "center"
                 , Attr.style "margin-bottom" "20px"
@@ -153,7 +164,7 @@ view model =
                 ]
                 [ text "Cooperative Sudoku" ]
             , div
-                [ Attr.style "background-color" "#ffffff"
+                [ Attr.style "background-color" (Color.toHex Color.Input)
                 , Attr.style "border-radius" "12px"
                 , Attr.style "box-shadow" "0 4px 6px rgba(0, 0, 0, 0.1)"
                 , Attr.style "padding" "20px"
@@ -186,8 +197,8 @@ viewLoadingSpinner =
         , Attr.style "height" "450px"
         ]
         [ div
-            [ Attr.style "border" "4px solid #f3f3f3"
-            , Attr.style "border-top" "4px solid #3498db"
+            [ Attr.style "border" ("4px solid " ++ Color.toHex Color.LoadingSpinnerBorder)
+            , Attr.style "border-top" ("4px solid " ++ Color.toHex Color.LoadingSpinner)
             , Attr.style "border-radius" "50%"
             , Attr.style "width" "50px"
             , Attr.style "height" "50px"
@@ -197,7 +208,7 @@ viewLoadingSpinner =
         ]
 
 
-viewSudokuGrid : SudokuGridFrontend -> Maybe ( Int, Int ) -> Html FrontendMsg
+viewSudokuGrid : SudokuGridFrontend -> Maybe Position -> Html FrontendMsg
 viewSudokuGrid grid selectedCell =
     div
         [ Attr.style "display" "grid"
@@ -212,13 +223,22 @@ viewSudokuGrid grid selectedCell =
         (List.concat (List.indexedMap (viewSudokuRow grid selectedCell) grid))
 
 
-viewSudokuRow : SudokuGridFrontend -> Maybe ( Int, Int ) -> Int -> List CellStateFrontend -> List (Html FrontendMsg)
+viewSudokuRow : SudokuGridFrontend -> Maybe Position -> Int -> List CellStateFrontend -> List (Html FrontendMsg)
 viewSudokuRow grid selectedCell rowIndex row =
-    List.indexedMap (viewSudokuCell grid selectedCell rowIndex) row
+    List.indexedMap
+        (\colIndex cellState ->
+            let
+                position : Position
+                position =
+                    ( rowIndex, colIndex )
+            in
+            viewSudokuCell grid selectedCell position cellState
+        )
+        row
 
 
-viewSudokuCell : SudokuGridFrontend -> Maybe ( Int, Int ) -> Int -> Int -> CellStateFrontend -> Html FrontendMsg
-viewSudokuCell grid selectedCell rowIndex colIndex cellState =
+viewSudokuCell : SudokuGridFrontend -> Maybe Position -> Position -> CellStateFrontend -> Html FrontendMsg
+viewSudokuCell grid selectedCell ( rowIndex, colIndex ) cellState =
     let
         isOriginal =
             case cellState of
@@ -236,34 +256,74 @@ viewSudokuCell grid selectedCell rowIndex colIndex cellState =
         isSelected =
             selectedCell == Just ( rowIndex, colIndex )
 
+        selectedNumber =
+            selectedCell
+                |> Maybe.andThen
+                    (\( r, c ) ->
+                        grid
+                            |> List.Extra.getAt r
+                            |> Maybe.andThen (List.Extra.getAt c)
+                            |> Maybe.andThen
+                                (\state ->
+                                    case state of
+                                        NotChangeable n ->
+                                            Just n
+
+                                        Changeable n ->
+                                            Just n
+
+                                        NoValue ->
+                                            Nothing
+                                )
+                    )
+
+        cellNumber =
+            case cellState of
+                NotChangeable n ->
+                    Just n
+
+                Changeable n ->
+                    Just n
+
+                NoValue ->
+                    Nothing
+
+        isSameNumber =
+            selectedNumber
+                |> Maybe.map (\n -> cellNumber == Just n)
+                |> Maybe.withDefault False
+
         backgroundColor =
             if isSelected then
-                "#4a90e2"
+                Color.toHex Color.Selected
+
+            else if isSameNumber then
+                Color.toHex Color.SameNumber
 
             else if isCompleted then
-                "#a5d6a7"
+                Color.toHex Color.Completed
 
             else if isOriginal then
-                "#f0f0f0"
+                Color.toHex Color.Original
 
             else
-                "#ffffff"
+                Color.toHex Color.Input
 
         textColor =
             if isSelected then
-                "#ffffff"
+                Color.toHex Color.Input
 
             else if isOriginal then
-                "#333333"
+                Color.toHex Color.Text
 
             else
-                "#666666"
+                Color.toHex Color.Secondary
 
         simpleBorderStyle =
-            "1px solid #d0d0d0"
+            "1px solid " ++ Color.toHex Color.BorderLight
 
         thickBorderStyle =
-            "2px solid #2c3e50"
+            "2px solid " ++ Color.toHex Color.BorderDark
 
         borderRight =
             if modBy 3 (colIndex + 1) == 0 then
@@ -311,11 +371,7 @@ viewSudokuCell grid selectedCell rowIndex colIndex cellState =
                     ""
 
         cellClickHandler =
-            if isOriginal then
-                []
-
-            else
-                [ onMouseDown (SelectCell rowIndex colIndex) ]
+            [ onMouseDown (SelectCell rowIndex colIndex) ]
     in
     div
         ([ Attr.style "width" "100%"
@@ -333,13 +389,7 @@ viewSudokuCell grid selectedCell rowIndex colIndex cellState =
             )
          , Attr.style "background-color" backgroundColor
          , Attr.style "color" textColor
-         , Attr.style "cursor"
-            (if isOriginal then
-                "default"
-
-             else
-                "pointer"
-            )
+         , Attr.style "cursor" "pointer"
          , Attr.style "user-select" "none"
          , Attr.style "border-right" borderRight
          , Attr.style "border-bottom" borderBottom
@@ -369,8 +419,8 @@ viewDigitButtons =
                         , Attr.style "padding" "10px 0"
                         , Attr.style "font-size" "16px"
                         , Attr.style "border" "none"
-                        , Attr.style "background-color" "#e0e0e0"
-                        , Attr.style "color" "#333"
+                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                        , Attr.style "color" (Color.toHex Color.Text)
                         , Attr.style "cursor" "pointer"
                         , Attr.style "margin" "0 2px"
                         , Attr.style "border-radius" "4px"
@@ -384,8 +434,8 @@ viewDigitButtons =
                     , Attr.style "padding" "10px 0"
                     , Attr.style "font-size" "16px"
                     , Attr.style "border" "none"
-                    , Attr.style "background-color" "#e0e0e0"
-                    , Attr.style "color" "#333"
+                    , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                    , Attr.style "color" (Color.toHex Color.Text)
                     , Attr.style "cursor" "pointer"
                     , Attr.style "margin" "0 2px"
                     , Attr.style "border-radius" "4px"

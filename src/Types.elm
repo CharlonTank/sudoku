@@ -34,7 +34,7 @@ type CellStateFrontend
 type alias FrontendModel =
     { key : Key
     , grid : Maybe SudokuGridFrontend
-    , selectedCell : Maybe ( Int, Int )
+    , selectedCell : Maybe Position
     }
 
 
@@ -55,8 +55,8 @@ type FrontendMsg
 
 
 type ToBackend
-    = UpdateCell Int Int Int
-    | RemoveCellValue Int Int
+    = UpdateCell Position Int
+    | RemoveCellValue Position
 
 
 type BackendMsg
@@ -87,3 +87,7 @@ cellStateToFrontend { cellState, value } =
 sudokuGridToFrontend : SudokuGridBackend -> SudokuGridFrontend
 sudokuGridToFrontend =
     List.map (List.map cellStateToFrontend)
+
+
+type alias Position =
+    ( Int, Int )

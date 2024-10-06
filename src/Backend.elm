@@ -72,10 +72,18 @@ update msg model =
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
 updateFromFrontend sessionId clientId msg model =
     case msg of
-        UpdateCell row col value ->
+        UpdateCell position value ->
+            let
+                ( row, col ) =
+                    position
+            in
             handleCellUpdate row col (Guess value) model
 
-        RemoveCellValue row col ->
+        RemoveCellValue position ->
+            let
+                ( row, col ) =
+                    position
+            in
             handleCellUpdate row col EmptyCell model
 
 
@@ -108,11 +116,11 @@ handleCellUpdate row col newCellState model =
                                             SudokuLogic.generateSudoku model.seed
                                     in
                                     ( { newModel | grid = Just brandNewGrid, seed = newSeed }
-                                    , broadcast (NewSudokuGridToFrontend (SudokuLogic.sudokuGridToFrontend brandNewGrid))
+                                    , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend brandNewGrid))
                                     )
 
                                 else
-                                    ( newModel, broadcast (UpdatedUserGridToFrontend (SudokuLogic.sudokuGridToFrontend newGrid)) )
+                                    ( newModel, broadcast (UpdatedUserGridToFrontend (sudokuGridToFrontend newGrid)) )
 
                     Nothing ->
                         ( model, Cmd.none )
