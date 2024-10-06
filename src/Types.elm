@@ -40,6 +40,8 @@ type alias FrontendModel =
     , connectedPlayers : List Player
     , currentPlayer : Maybe Player
     , gameoverPopoverOn : Bool
+    , namePopoverOn : Bool
+    , nameInput : String
     }
 
 
@@ -59,11 +61,16 @@ type FrontendMsg
     | KeyPressed String
     | RemoveGuess
     | CloseGameOverPopover
+    | OpenNamePopover
+    | CloseNamePopover
+    | UpdateNameInput String
+    | SaveName
 
 
 type ToBackend
     = UpdateCell Position Int
     | RemoveCellValue Position
+    | UpdatePlayerName String
 
 
 type BackendMsg
@@ -72,6 +79,7 @@ type BackendMsg
     | ClientConnected SessionId ClientId
     | ClientDisconnected SessionId ClientId
     | InitialTime Int
+    | UpdatePlayerNameBackend SessionId String
 
 
 type ToFrontend
@@ -79,6 +87,7 @@ type ToFrontend
     | UpdatedUserGridToFrontend SudokuGridFrontend
     | ConnectedPlayersChanged (List Player)
     | SetCurrentPlayer Player
+    | PlayerNameUpdated Player
 
 
 cellStateToFrontend : DigitValueBackend -> CellStateFrontend
@@ -113,6 +122,7 @@ type alias Position =
 type alias Player =
     { sessionId : SessionId
     , lifes : Maybe Life
+    , name : Maybe String -- Add this line
     }
 
 

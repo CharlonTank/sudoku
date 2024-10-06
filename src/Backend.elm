@@ -58,7 +58,7 @@ update msg model =
                 let
                     newPlayer : Player
                     newPlayer =
-                        { sessionId = sessionId, lifes = Just ThreeLife }
+                        { sessionId = sessionId, lifes = Just ThreeLife, name = Nothing }
 
                     newModel =
                         { model | connectedPlayers = newPlayer :: model.connectedPlayers }
@@ -97,6 +97,23 @@ update msg model =
             , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend newGrid))
             )
 
+        UpdatePlayerNameBackend sessionId name ->
+            let
+                updatedPlayers =
+                    List.map
+                        (\player ->
+                            if player.sessionId == sessionId then
+                                { player | name = Just name }
+
+                            else
+                                player
+                        )
+                        model.connectedPlayers
+            in
+            ( { model | connectedPlayers = updatedPlayers }
+            , broadcast (ConnectedPlayersChanged updatedPlayers)
+            )
+
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
 updateFromFrontend sessionId clientId msg model =
@@ -114,6 +131,35 @@ updateFromFrontend sessionId clientId msg model =
                     position
             in
             handleCellUpdate sessionId row col EmptyCell model
+
+        UpdatePlayerName name ->
+            let
+                updatedPlayers =
+                    List.map
+                        (\player ->
+                            if player.sessionId == sessionId then
+                                { player | name = Just name }
+
+                            else
+                                player
+                        )
+                        model.connectedPlayers
+
+                updatedPlayer =
+                    List.filter (\p -> p.sessionId == sessionId) updatedPlayers
+                        |> List.head
+            in
+            ( { model | connectedPlayers = updatedPlayers }
+            , Cmd.batch
+                [ broadcast (ConnectedPlayersChanged updatedPlayers)
+                , case updatedPlayer of
+                    Just player ->
+                        broadcast (PlayerNameUpdated player)
+
+                    Nothing ->
+                        Cmd.none
+                ]
+            )
 
 
 handleCellUpdate : SessionId -> Int -> Int -> CellStateBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )

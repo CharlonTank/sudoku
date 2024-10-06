@@ -5,7 +5,7 @@ import Browser.Events
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes as Attr
-import Html.Events exposing (onClick, onMouseDown)
+import Html.Events exposing (onClick, onInput, onMouseDown)
 import Json.Decode as Json
 import Lamdera exposing (SessionId)
 import List.Extra
@@ -34,7 +34,9 @@ init url key =
       , selectedCell = Nothing
       , connectedPlayers = []
       , currentPlayer = Nothing
-      , gameoverPopoverOn = False -- Add this line
+      , gameoverPopoverOn = False
+      , namePopoverOn = False
+      , nameInput = ""
       }
     , Cmd.none
     )
@@ -132,6 +134,20 @@ update msg model =
         CloseGameOverPopover ->
             ( { model | gameoverPopoverOn = False }, Cmd.none )
 
+        OpenNamePopover ->
+            ( { model | namePopoverOn = True }, Cmd.none )
+
+        CloseNamePopover ->
+            ( { model | namePopoverOn = False, nameInput = "" }, Cmd.none )
+
+        UpdateNameInput name ->
+            ( { model | nameInput = name }, Cmd.none )
+
+        SaveName ->
+            ( { model | namePopoverOn = False, nameInput = "" }
+            , Lamdera.sendToBackend (UpdatePlayerName model.nameInput)
+            )
+
 
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 updateFromBackend msg model =
@@ -162,6 +178,9 @@ updateFromBackend msg model =
             )
 
         SetCurrentPlayer player ->
+            ( { model | currentPlayer = Just player }, Cmd.none )
+
+        PlayerNameUpdated player ->
             ( { model | currentPlayer = Just player }, Cmd.none )
 
 
@@ -203,7 +222,8 @@ view model =
                 , Attr.style "width" "100%"
                 ]
                 [ text "Cooperative Sudoku" ]
-            , viewCurrentPlayer model.currentPlayer -- Add this line
+            , viewCurrentPlayer model.currentPlayer
+            , viewNamePopover model.namePopoverOn model.nameInput
             , div
                 [ Attr.style "background-color" (Color.toHex Color.Input)
                 , Attr.style "border-radius" "12px"
@@ -256,12 +276,10 @@ viewSudokuGrid grid selectedCell =
     div
         [ Attr.style "display" "grid"
         , Attr.style "grid-template-columns" "repeat(9, 1fr)"
-        , Attr.style "gap" "0" -- Changed from "1px" to "0"
+        , Attr.style "gap" "0"
         , Attr.style "width" "100%"
         , Attr.style "aspect-ratio" "1 / 1"
         , Attr.style "margin" "0 auto 20px"
-
-        -- Removed the border style from here
         ]
         (List.concat (List.indexedMap (viewSudokuRow grid selectedCell) grid))
 
@@ -524,7 +542,7 @@ viewPlayer player =
         , Attr.style "display" "flex"
         , Attr.style "align-items" "center"
         ]
-        [ text (String.left 4 player.sessionId)
+        [ text (Maybe.withDefault (String.left 4 player.sessionId) player.name)
         , viewLifes player.lifes
         ]
 
@@ -562,13 +580,45 @@ viewCurrentPlayer maybePlayer =
         [ Attr.style "margin-bottom" "10px"
         , Attr.style "color" (Color.toHex Color.Text)
         , Attr.style "font-size" "16px"
+        , Attr.style "display" "flex"
+        , Attr.style "align-items" "center"
+        , Attr.style "justify-content" "center"
         ]
-        [ text "Current player: "
-        , case maybePlayer of
+        [ case maybePlayer of
             Just player ->
-                span []
-                    [ text (String.left 4 player.sessionId)
+                let
+                    displayName =
+                        Maybe.withDefault (String.left 4 player.sessionId) player.name
+                in
+                div
+                    [ Attr.style "display" "flex"
+                    , Attr.style "align-items" "center"
+                    ]
+                    [ span [] [ text displayName ]
                     , viewLifes player.lifes
+                    , button
+                        [ onClick OpenNamePopover
+                        , Attr.style "margin-left" "10px"
+                        , Attr.style "padding" "6px 12px"
+                        , Attr.style "font-size" "14px"
+                        , Attr.style "font-weight" "bold"
+                        , Attr.style "color" (Color.toHex Color.Text)
+                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                        , Attr.style "border" "none"
+                        , Attr.style "border-radius" "20px"
+                        , Attr.style "cursor" "pointer"
+                        , Attr.style "transition" "background-color 0.3s ease"
+                        , Attr.style "box-shadow" "0 2px 4px rgba(0, 0, 0, 0.1)"
+                        , Attr.style "outline" "none"
+                        ]
+                        [ text
+                            (if player.name == Nothing then
+                                "Set name"
+
+                             else
+                                "Change name"
+                            )
+                        ]
                     ]
 
             Nothing ->
@@ -623,6 +673,66 @@ viewGameOverPopover isVisible =
                     , Attr.style "cursor" "pointer"
                     ]
                     [ text "Close" ]
+                ]
+            ]
+
+    else
+        text ""
+
+
+viewNamePopover : Bool -> String -> Html FrontendMsg
+viewNamePopover isVisible nameInput =
+    if isVisible then
+        div
+            [ Attr.style "position" "fixed"
+            , Attr.style "top" "0"
+            , Attr.style "left" "0"
+            , Attr.style "width" "100%"
+            , Attr.style "height" "100%"
+            , Attr.style "background-color" "rgba(0, 0, 0, 0.5)"
+            , Attr.style "display" "flex"
+            , Attr.style "justify-content" "center"
+            , Attr.style "align-items" "center"
+            , Attr.style "z-index" "1000"
+            ]
+            [ div
+                [ Attr.style "background-color" (Color.toHex Color.Input)
+                , Attr.style "padding" "20px"
+                , Attr.style "border-radius" "8px"
+                , Attr.style "text-align" "center"
+                ]
+                [ h2 [] [ text "Enter Your Name" ]
+                , input
+                    [ Attr.type_ "text"
+                    , Attr.value nameInput
+                    , Attr.placeholder "Your name"
+                    , Attr.style "margin-bottom" "10px"
+                    , Attr.style "padding" "5px"
+                    , Attr.style "width" "200px"
+                    , onInput UpdateNameInput
+                    ]
+                    []
+                , div []
+                    [ button
+                        [ onClick SaveName
+                        , Attr.style "margin-right" "10px"
+                        , Attr.style "padding" "5px 10px"
+                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                        , Attr.style "border" "none"
+                        , Attr.style "border-radius" "4px"
+                        , Attr.style "cursor" "pointer"
+                        ]
+                        [ text "Save" ]
+                    , button
+                        [ onClick CloseNamePopover
+                        , Attr.style "padding" "5px 10px"
+                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                        , Attr.style "border" "none"
+                        , Attr.style "border-radius" "4px"
+                        , Attr.style "cursor" "pointer"
+                        ]
+                        [ text "Cancel" ]
+                    ]
                 ]
             ]
 
