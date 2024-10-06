@@ -33,6 +33,7 @@ init url key =
       , grid = Nothing
       , selectedCell = Nothing
       , connectedPlayers = []
+      , currentPlayer = Nothing -- Add this line
       }
     , Cmd.none
     )
@@ -126,7 +127,21 @@ updateFromBackend msg model =
             ( { model | grid = Just grid }, Cmd.none )
 
         ConnectedPlayersChanged players ->
-            ( { model | connectedPlayers = players }, Cmd.none )
+            ( { model
+                | connectedPlayers = players
+                , currentPlayer =
+                    case model.currentPlayer of
+                        Just currentPlayer ->
+                            List.Extra.find (\p -> p.sessionId == currentPlayer.sessionId) players
+
+                        Nothing ->
+                            List.head players
+              }
+            , Cmd.none
+            )
+
+        SetCurrentPlayer player ->
+            ( { model | currentPlayer = Just player }, Cmd.none )
 
 
 subscriptions : FrontendModel -> Sub FrontendMsg
@@ -167,6 +182,7 @@ view model =
                 , Attr.style "width" "100%"
                 ]
                 [ text "Cooperative Sudoku" ]
+            , viewCurrentPlayer model.currentPlayer -- Add this line
             , div
                 [ Attr.style "background-color" (Color.toHex Color.Input)
                 , Attr.style "border-radius" "12px"
@@ -502,3 +518,23 @@ viewLifes maybeLife =
         , Attr.style "font-size" "12px"
         ]
         [ text lifesString ]
+
+
+viewCurrentPlayer : Maybe Player -> Html FrontendMsg
+viewCurrentPlayer maybePlayer =
+    div
+        [ Attr.style "margin-bottom" "10px"
+        , Attr.style "color" (Color.toHex Color.Text)
+        , Attr.style "font-size" "16px"
+        ]
+        [ text "Current player: "
+        , case maybePlayer of
+            Just player ->
+                span []
+                    [ text (String.left 4 player.sessionId)
+                    , viewLifes player.lifes
+                    ]
+
+            Nothing ->
+                text "Not connected"
+        ]

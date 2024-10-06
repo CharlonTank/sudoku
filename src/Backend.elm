@@ -20,7 +20,7 @@ app =
 init : ( BackendModel, Cmd BackendMsg )
 init =
     ( { grid = Nothing
-      , seed = Random.initialSeed 0
+      , seed = Random.initialSeed 42
       , connectedPlayers = []
       }
     , Task.perform (\posix -> InitialTime (Time.posixToMillis posix)) Time.now
@@ -65,6 +65,7 @@ update msg model =
                 ( newModel
                 , Cmd.batch
                     [ broadcast (ConnectedPlayersChanged newModel.connectedPlayers)
+                    , sendToFrontend clientId (SetCurrentPlayer newPlayer)
                     , case model.grid of
                         Just grid ->
                             sendToFrontend clientId (NewSudokuGridToFrontend (sudokuGridToFrontend grid))

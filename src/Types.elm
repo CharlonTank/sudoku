@@ -36,6 +36,7 @@ type alias FrontendModel =
     , grid : Maybe SudokuGridFrontend
     , selectedCell : Maybe Position
     , connectedPlayers : List Player
+    , currentPlayer : Maybe Player -- Add this line
     }
 
 
@@ -73,6 +74,7 @@ type ToFrontend
     = NewSudokuGridToFrontend SudokuGridFrontend
     | UpdatedUserGridToFrontend SudokuGridFrontend
     | ConnectedPlayersChanged (List Player)
+    | SetCurrentPlayer Player -- Add this line
 
 
 cellStateToFrontend : DigitValueBackend -> CellStateFrontend
