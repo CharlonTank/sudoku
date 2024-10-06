@@ -33,7 +33,8 @@ init url key =
       , grid = Nothing
       , selectedCell = Nothing
       , connectedPlayers = []
-      , currentPlayer = Nothing -- Add this line
+      , currentPlayer = Nothing
+      , gameoverPopoverOn = False -- Add this line
       }
     , Cmd.none
     )
@@ -73,9 +74,13 @@ update msg model =
         InputDigit digit ->
             case model.selectedCell of
                 Just position ->
-                    ( model
-                    , Lamdera.sendToBackend (UpdateCell position digit)
-                    )
+                    if not model.gameoverPopoverOn && playerCanMakeGuess model.currentPlayer then
+                        ( model
+                        , Lamdera.sendToBackend (UpdateCell position digit)
+                        )
+
+                    else
+                        ( model, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
@@ -83,38 +88,49 @@ update msg model =
         RemoveGuess ->
             case model.selectedCell of
                 Just position ->
-                    ( model
-                    , Lamdera.sendToBackend (RemoveCellValue position)
-                    )
+                    if not model.gameoverPopoverOn && playerCanMakeGuess model.currentPlayer then
+                        ( model
+                        , Lamdera.sendToBackend (RemoveCellValue position)
+                        )
+
+                    else
+                        ( model, Cmd.none )
 
                 Nothing ->
                     ( model, Cmd.none )
 
         KeyPressed key ->
-            case model.selectedCell of
-                Just position ->
-                    case key of
-                        "Backspace" ->
-                            ( model
-                            , Lamdera.sendToBackend (RemoveCellValue position)
-                            )
+            if not model.gameoverPopoverOn && playerCanMakeGuess model.currentPlayer then
+                case model.selectedCell of
+                    Just position ->
+                        case key of
+                            "Backspace" ->
+                                ( model
+                                , Lamdera.sendToBackend (RemoveCellValue position)
+                                )
 
-                        digit ->
-                            case String.toInt digit of
-                                Just n ->
-                                    if n >= 1 && n <= 9 then
-                                        ( model
-                                        , Lamdera.sendToBackend (UpdateCell position n)
-                                        )
+                            digit ->
+                                case String.toInt digit of
+                                    Just n ->
+                                        if n >= 1 && n <= 9 then
+                                            ( model
+                                            , Lamdera.sendToBackend (UpdateCell position n)
+                                            )
 
-                                    else
+                                        else
+                                            ( model, Cmd.none )
+
+                                    Nothing ->
                                         ( model, Cmd.none )
 
-                                Nothing ->
-                                    ( model, Cmd.none )
+                    Nothing ->
+                        ( model, Cmd.none )
 
-                Nothing ->
-                    ( model, Cmd.none )
+            else
+                ( model, Cmd.none )
+
+        CloseGameOverPopover ->
+            ( { model | gameoverPopoverOn = False }, Cmd.none )
 
 
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
@@ -127,15 +143,20 @@ updateFromBackend msg model =
             ( { model | grid = Just grid }, Cmd.none )
 
         ConnectedPlayersChanged players ->
+            let
+                updatedCurrentPlayer =
+                    model.currentPlayer
+                        |> Maybe.andThen (\cp -> List.Extra.find (\p -> p.sessionId == cp.sessionId) players)
+
+                gameoverPopoverOn =
+                    updatedCurrentPlayer
+                        |> Maybe.map (\p -> p.lifes == Nothing)
+                        |> Maybe.withDefault False
+            in
             ( { model
                 | connectedPlayers = players
-                , currentPlayer =
-                    case model.currentPlayer of
-                        Just currentPlayer ->
-                            List.Extra.find (\p -> p.sessionId == currentPlayer.sessionId) players
-
-                        Nothing ->
-                            List.head players
+                , currentPlayer = updatedCurrentPlayer
+                , gameoverPopoverOn = gameoverPopoverOn
               }
             , Cmd.none
             )
@@ -204,6 +225,7 @@ view model =
                 , viewDigitButtons
                 ]
             , viewConnectedPlayers model.connectedPlayers
+            , viewGameOverPopover model.gameoverPopoverOn
             ]
         ]
     }
@@ -538,3 +560,57 @@ viewCurrentPlayer maybePlayer =
             Nothing ->
                 text "Not connected"
         ]
+
+
+
+-- Add this helper function
+
+
+playerCanMakeGuess : Maybe Player -> Bool
+playerCanMakeGuess maybePlayer =
+    case maybePlayer of
+        Just player ->
+            player.lifes /= Nothing
+
+        Nothing ->
+            False
+
+
+viewGameOverPopover : Bool -> Html FrontendMsg
+viewGameOverPopover isVisible =
+    if isVisible then
+        div
+            [ Attr.style "position" "fixed"
+            , Attr.style "top" "0"
+            , Attr.style "left" "0"
+            , Attr.style "width" "100%"
+            , Attr.style "height" "100%"
+            , Attr.style "background-color" "rgba(0, 0, 0, 0.5)"
+            , Attr.style "display" "flex"
+            , Attr.style "justify-content" "center"
+            , Attr.style "align-items" "center"
+            , Attr.style "z-index" "1000"
+            ]
+            [ div
+                [ Attr.style "background-color" (Color.toHex Color.Input)
+                , Attr.style "padding" "20px"
+                , Attr.style "border-radius" "8px"
+                , Attr.style "text-align" "center"
+                ]
+                [ h2 [] [ text "Game Over" ]
+                , p [] [ text "You've lost all your lives!" ]
+                , button
+                    [ onClick CloseGameOverPopover
+                    , Attr.style "margin-top" "10px"
+                    , Attr.style "padding" "5px 10px"
+                    , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                    , Attr.style "border" "none"
+                    , Attr.style "border-radius" "4px"
+                    , Attr.style "cursor" "pointer"
+                    ]
+                    [ text "Close" ]
+                ]
+            ]
+
+    else
+        text ""

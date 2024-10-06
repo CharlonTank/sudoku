@@ -37,6 +37,7 @@ type alias FrontendModel =
     , selectedCell : Maybe Position
     , connectedPlayers : List Player
     , currentPlayer : Maybe Player -- Add this line
+    , gameoverPopoverOn : Bool -- Add this line
     }
 
 
@@ -55,6 +56,7 @@ type FrontendMsg
     | InputDigit Int
     | KeyPressed String
     | RemoveGuess
+    | CloseGameOverPopover
 
 
 type ToBackend
