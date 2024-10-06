@@ -172,6 +172,9 @@ isSudokuComplete grid =
                         Guess val ->
                             val == cell.value
 
+                        IncorrectGuess _ ->
+                            False
+
                         EmptyCell ->
                             False
                 )
@@ -229,6 +232,9 @@ isRowCompleted rowIndex grid =
                     Changeable n ->
                         n
 
+                    WrongGuess n ->
+                        n
+
                     NoValue ->
                         0
             )
@@ -250,6 +256,9 @@ isColumnCompleted colIndex grid =
                                     n
 
                                 Changeable n ->
+                                    n
+
+                                WrongGuess n ->
                                     n
 
                                 NoValue ->
@@ -286,6 +295,9 @@ isSquareCompleted rowIndex colIndex grid =
                                 n
 
                             Changeable n ->
+                                n
+
+                            WrongGuess n ->
                                 n
 
                             NoValue ->
@@ -336,7 +348,14 @@ cellStateToFrontend { cellState, value } =
             NotChangeable value
 
         Guess guessValue ->
-            Changeable guessValue
+            if guessValue == value then
+                Changeable guessValue
+
+            else
+                WrongGuess guessValue
+
+        IncorrectGuess guessValue ->
+            WrongGuess guessValue
 
         EmptyCell ->
             NoValue

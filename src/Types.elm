@@ -18,6 +18,7 @@ type alias DigitValueBackend =
 type CellStateBackend
     = RevealedCell
     | Guess Int
+    | IncorrectGuess Int -- Changed from WrongGuess to IncorrectGuess
     | EmptyCell
 
 
@@ -28,6 +29,7 @@ type alias SudokuGridFrontend =
 type CellStateFrontend
     = NotChangeable Int
     | Changeable Int
+    | WrongGuess Int
     | NoValue
 
 
@@ -36,8 +38,8 @@ type alias FrontendModel =
     , grid : Maybe SudokuGridFrontend
     , selectedCell : Maybe Position
     , connectedPlayers : List Player
-    , currentPlayer : Maybe Player -- Add this line
-    , gameoverPopoverOn : Bool -- Add this line
+    , currentPlayer : Maybe Player
+    , gameoverPopoverOn : Bool
     }
 
 
@@ -76,7 +78,7 @@ type ToFrontend
     = NewSudokuGridToFrontend SudokuGridFrontend
     | UpdatedUserGridToFrontend SudokuGridFrontend
     | ConnectedPlayersChanged (List Player)
-    | SetCurrentPlayer Player -- Add this line
+    | SetCurrentPlayer Player
 
 
 cellStateToFrontend : DigitValueBackend -> CellStateFrontend
@@ -86,7 +88,14 @@ cellStateToFrontend { cellState, value } =
             NotChangeable value
 
         Guess guessValue ->
-            Changeable guessValue
+            if guessValue == value then
+                Changeable guessValue
+
+            else
+                WrongGuess guessValue
+
+        IncorrectGuess guessValue ->
+            WrongGuess guessValue
 
         EmptyCell ->
             NoValue

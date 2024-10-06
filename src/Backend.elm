@@ -56,6 +56,7 @@ update msg model =
 
             else
                 let
+                    newPlayer : Player
                     newPlayer =
                         { sessionId = sessionId, lifes = Just ThreeLife }
 
@@ -132,9 +133,6 @@ handleCellUpdate sessionId row col newCellState model =
 
                             _ ->
                                 let
-                                    newGrid =
-                                        SudokuLogic.updateGrid row col { cellState = newCellState, value = cell.value } grid
-
                                     isCorrect =
                                         case newCellState of
                                             Guess guessValue ->
@@ -142,6 +140,21 @@ handleCellUpdate sessionId row col newCellState model =
 
                                             _ ->
                                                 True
+
+                                    updatedCellState =
+                                        if isCorrect then
+                                            newCellState
+
+                                        else
+                                            case newCellState of
+                                                Guess guessValue ->
+                                                    IncorrectGuess guessValue
+
+                                                _ ->
+                                                    newCellState
+
+                                    newGrid =
+                                        SudokuLogic.updateGrid row col { cellState = updatedCellState, value = cell.value } grid
 
                                     ( updatedPlayers, lifeLost ) =
                                         if not isCorrect then
@@ -222,7 +235,14 @@ cellStateToFrontend { cellState, value } =
             NotChangeable value
 
         Guess guessValue ->
-            Changeable guessValue
+            if guessValue == value then
+                Changeable guessValue
+
+            else
+                WrongGuess guessValue
+
+        IncorrectGuess guessValue ->
+            WrongGuess guessValue
 
         EmptyCell ->
             NoValue

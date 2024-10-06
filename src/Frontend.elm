@@ -315,6 +315,9 @@ viewSudokuCell grid selectedCell ( rowIndex, colIndex ) cellState =
                                         Changeable n ->
                                             Just n
 
+                                        WrongGuess n ->
+                                            Just n
+
                                         NoValue ->
                                             Nothing
                                 )
@@ -326,6 +329,9 @@ viewSudokuCell grid selectedCell ( rowIndex, colIndex ) cellState =
                     Just n
 
                 Changeable n ->
+                    Just n
+
+                WrongGuess n ->
                     Just n
 
                 NoValue ->
@@ -353,14 +359,19 @@ viewSudokuCell grid selectedCell ( rowIndex, colIndex ) cellState =
                 Color.toHex Color.Input
 
         textColor =
-            if isSelected then
-                Color.toHex Color.Input
+            case cellState of
+                WrongGuess _ ->
+                    Color.toHex Color.WrongGuess
 
-            else if isOriginal then
-                Color.toHex Color.Text
+                _ ->
+                    if isSelected then
+                        Color.toHex Color.Input
 
-            else
-                Color.toHex Color.Secondary
+                    else if isOriginal then
+                        Color.toHex Color.Text
+
+                    else
+                        Color.toHex Color.Secondary
 
         simpleBorderStyle =
             "1px solid " ++ Color.toHex Color.BorderLight
@@ -408,6 +419,9 @@ viewSudokuCell grid selectedCell ( rowIndex, colIndex ) cellState =
                     String.fromInt n
 
                 Changeable n ->
+                    String.fromInt n
+
+                WrongGuess n ->
                     String.fromInt n
 
                 NoValue ->

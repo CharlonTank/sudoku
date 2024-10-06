@@ -15,7 +15,8 @@ type Color
     | ButtonBackground
     | LoadingSpinner
     | LoadingSpinnerBorder
-    | SameNumber -- Add this new color
+    | SameNumber
+    | WrongGuess -- Add this line
 
 
 toHex : Color -> String
@@ -63,6 +64,10 @@ toHex color =
         SameNumber ->
             "#e6f3ff"
 
+        WrongGuess ->
+            "#ff0000"
 
 
+
+-- Red color for wrong guesses
 -- Light blue color for highlighting same numbers
