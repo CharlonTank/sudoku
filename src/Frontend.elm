@@ -275,7 +275,15 @@ viewHome model =
                     viewLoadingSpinner
             , viewDigitButtons
             ]
-        , viewConnectedPlayers model.connectedPlayers
+        , model.currentPlayer
+            |> Maybe.map
+                (\currentPlayer ->
+                    viewConnectedPlayers
+                        (model.connectedPlayers
+                            |> List.filter (\p -> p.sessionId /= currentPlayer.sessionId)
+                        )
+                )
+            |> Maybe.withDefault (text "")
         , viewGameOverPopover model.gameoverPopoverOn
         ]
 
@@ -574,12 +582,12 @@ viewConnectedPlayers players =
         , Attr.style "color" (Color.toHex Color.Text)
         , Attr.style "font-size" "14px"
         , Attr.style "display" "flex"
-        , Attr.style "flex-direction" "column"
-        , Attr.style "align-items" "flex-start"
+        , Attr.style "flex-direction" "row"
+        , Attr.style "align-items" "center"
+        , Attr.style "justify-content" "center"
+        , Attr.style "flex-wrap" "wrap"
         ]
-        ([ div [ Attr.style "font-weight" "bold", Attr.style "margin-bottom" "5px" ] [ text "Connected players:" ] ]
-            ++ List.map viewPlayer players
-        )
+        (List.map viewPlayer players)
 
 
 viewPlayer : Player -> Html FrontendMsg
