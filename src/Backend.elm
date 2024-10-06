@@ -51,30 +51,35 @@ update msg model =
             )
 
         ClientConnected sessionId clientId ->
-            if List.any (\player -> player.sessionId == sessionId) model.connectedPlayers then
-                ( model, Cmd.none )
+            let
+                existingPlayer =
+                    List.filter (\player -> player.sessionId == sessionId) model.connectedPlayers
+                        |> List.head
 
-            else
-                let
-                    newPlayer : Player
-                    newPlayer =
-                        { sessionId = sessionId, lifes = Just ThreeLife, name = Nothing }
-
-                    newModel =
-                        { model | connectedPlayers = newPlayer :: model.connectedPlayers }
-                in
-                ( newModel
-                , Cmd.batch
-                    [ broadcast (ConnectedPlayersChanged newModel.connectedPlayers)
-                    , sendToFrontend clientId (SetCurrentPlayer newPlayer)
-                    , case model.grid of
-                        Just grid ->
-                            sendToFrontend clientId (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
+                ( newModel, playerToSend ) =
+                    case existingPlayer of
+                        Just player ->
+                            ( model, player )
 
                         Nothing ->
-                            Cmd.none
-                    ]
-                )
+                            let
+                                newPlayer =
+                                    { sessionId = sessionId, lifes = Just ThreeLife, name = Nothing }
+                            in
+                            ( { model | connectedPlayers = newPlayer :: model.connectedPlayers }, newPlayer )
+            in
+            ( newModel
+            , Cmd.batch
+                [ broadcast (ConnectedPlayersChanged newModel.connectedPlayers)
+                , sendToFrontend clientId (SetCurrentPlayer playerToSend)
+                , case model.grid of
+                    Just grid ->
+                        sendToFrontend clientId (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
+
+                    Nothing ->
+                        Cmd.none
+                ]
+            )
 
         ClientDisconnected sessionId clientId ->
             let
@@ -113,6 +118,9 @@ update msg model =
             ( { model | connectedPlayers = updatedPlayers }
             , broadcast (ConnectedPlayersChanged updatedPlayers)
             )
+
+        PerformBackendReset ->
+            init
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
@@ -160,6 +168,9 @@ updateFromFrontend sessionId clientId msg model =
                         Cmd.none
                 ]
             )
+
+        ResetBackendRequest ->
+            ( model, Task.perform (\_ -> PerformBackendReset) (Task.succeed ()) )
 
 
 handleCellUpdate : SessionId -> Int -> Int -> CellStateBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )

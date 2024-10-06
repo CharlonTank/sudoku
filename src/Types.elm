@@ -4,7 +4,14 @@ import Browser exposing (UrlRequest)
 import Browser.Navigation exposing (Key)
 import Lamdera exposing (ClientId, SessionId)
 import Random
+import Time
 import Url exposing (Url)
+import Url.Parser exposing ((</>), Parser, int, map, oneOf, s, string)
+
+
+type Route
+    = Home
+    | Admin
 
 
 type alias SudokuGridBackend =
@@ -42,6 +49,7 @@ type alias FrontendModel =
     , gameoverPopoverOn : Bool
     , namePopoverOn : Bool
     , nameInput : String
+    , route : Route -- Add this line
     }
 
 
@@ -65,12 +73,14 @@ type FrontendMsg
     | CloseNamePopover
     | UpdateNameInput String
     | SaveName
+    | ResetBackend
 
 
 type ToBackend
     = UpdateCell Position Int
     | RemoveCellValue Position
     | UpdatePlayerName String
+    | ResetBackendRequest
 
 
 type BackendMsg
@@ -80,6 +90,7 @@ type BackendMsg
     | ClientDisconnected SessionId ClientId
     | InitialTime Int
     | UpdatePlayerNameBackend SessionId String
+    | PerformBackendReset
 
 
 type ToFrontend
@@ -88,6 +99,7 @@ type ToFrontend
     | ConnectedPlayersChanged (List Player)
     | SetCurrentPlayer Player
     | PlayerNameUpdated Player
+    | BackendResetConfirmation
 
 
 cellStateToFrontend : DigitValueBackend -> CellStateFrontend
@@ -130,3 +142,11 @@ type Life
     = ThreeLife
     | TwoLife
     | OneLife
+
+
+routeParser : Parser (Route -> a) a
+routeParser =
+    oneOf
+        [ map Home Url.Parser.top
+        , map Admin (s "admin")
+        ]

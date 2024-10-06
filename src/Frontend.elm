@@ -11,15 +11,17 @@ import Lamdera exposing (SessionId)
 import List.Extra
 import Palette.Color as Color
 import SudokuLogic
+import Time
 import Types exposing (..)
 import Url
+import Url.Parser as Parser exposing ((</>), Parser, int, map, oneOf, s, string)
 
 
 app =
     Lamdera.frontend
         { init = init
         , onUrlRequest = UrlClicked
-        , onUrlChange = UrlChanged
+        , onUrlChange = UrlChanged -- Update this line
         , update = update
         , updateFromBackend = updateFromBackend
         , subscriptions = subscriptions
@@ -29,6 +31,10 @@ app =
 
 init : Url.Url -> Nav.Key -> ( FrontendModel, Cmd FrontendMsg )
 init url key =
+    let
+        route =
+            Parser.parse routeParser url |> Maybe.withDefault Home
+    in
     ( { key = key
       , grid = Nothing
       , selectedCell = Nothing
@@ -37,6 +43,7 @@ init url key =
       , gameoverPopoverOn = False
       , namePopoverOn = False
       , nameInput = ""
+      , route = route -- Add this line
       }
     , Cmd.none
     )
@@ -58,7 +65,11 @@ update msg model =
                     )
 
         UrlChanged url ->
-            ( model, Cmd.none )
+            let
+                newRoute =
+                    Parser.parse routeParser url |> Maybe.withDefault Home
+            in
+            ( { model | route = newRoute }, Cmd.none )
 
         NoOpFrontendMsg ->
             ( model, Cmd.none )
@@ -148,6 +159,9 @@ update msg model =
             , Lamdera.sendToBackend (UpdatePlayerName model.nameInput)
             )
 
+        ResetBackend ->
+            ( model, Lamdera.sendToBackend ResetBackendRequest )
+
 
 updateFromBackend : ToFrontend -> FrontendModel -> ( FrontendModel, Cmd FrontendMsg )
 updateFromBackend msg model =
@@ -183,72 +197,105 @@ updateFromBackend msg model =
         PlayerNameUpdated player ->
             ( { model | currentPlayer = Just player }, Cmd.none )
 
+        BackendResetConfirmation ->
+            ( { model | grid = Nothing, selectedCell = Nothing }, Cmd.none )
+
 
 subscriptions : FrontendModel -> Sub FrontendMsg
 subscriptions model =
-    case model.selectedCell of
-        Just _ ->
-            Browser.Events.onKeyDown (Json.map KeyPressed (Json.field "key" Json.string))
+    Sub.batch
+        [ case model.selectedCell of
+            Just _ ->
+                Browser.Events.onKeyDown (Json.map KeyPressed (Json.field "key" Json.string))
 
-        Nothing ->
-            Sub.none
+            Nothing ->
+                Sub.none
+        ]
 
 
 view : FrontendModel -> Browser.Document FrontendMsg
 view model =
     { title = "Cooperative Sudoku"
     , body =
-        [ div
-            [ Attr.style "display" "flex"
-            , Attr.style "flex-direction" "column"
-            , Attr.style "align-items" "center"
-            , Attr.style "justify-content" "flex-start"
-            , Attr.style "height" "100vh"
-            , Attr.style "width" "100vw"
-            , Attr.style "background" (Color.toHex Color.Background)
-            , Attr.style "font-family" "Arial, sans-serif"
-            , Attr.style "overflow" "hidden"
-            , Attr.style "position" "fixed"
-            , Attr.style "top" "0"
-            , Attr.style "left" "0"
-            , Attr.style "padding" "20px"
-            , Attr.style "box-sizing" "border-box"
-            ]
-            [ h1
-                [ Attr.style "color" (Color.toHex Color.Text)
-                , Attr.style "font-size" "24px"
-                , Attr.style "text-align" "center"
-                , Attr.style "margin-bottom" "20px"
-                , Attr.style "width" "100%"
-                ]
-                [ text "Cooperative Sudoku" ]
-            , viewCurrentPlayer model.currentPlayer
-            , viewNamePopover model.namePopoverOn model.nameInput
-            , div
-                [ Attr.style "background-color" (Color.toHex Color.Input)
-                , Attr.style "border-radius" "12px"
-                , Attr.style "box-shadow" "0 4px 6px rgba(0, 0, 0, 0.1)"
-                , Attr.style "padding" "20px"
-                , Attr.style "max-width" "95vw"
-                , Attr.style "width" "min(95vw, 500px)"
-                , Attr.style "max-height" "calc(95vh - 60px)"
-                , Attr.style "overflow-y" "auto"
-                , Attr.style "display" "flex"
-                , Attr.style "flex-direction" "column"
-                ]
-                [ case model.grid of
-                    Just grid ->
-                        viewSudokuGrid grid model.selectedCell
+        [ case model.route of
+            Home ->
+                viewHome model
 
-                    Nothing ->
-                        viewLoadingSpinner
-                , viewDigitButtons
-                ]
-            , viewConnectedPlayers model.connectedPlayers
-            , viewGameOverPopover model.gameoverPopoverOn
-            ]
+            Admin ->
+                viewAdmin
         ]
     }
+
+
+viewHome : FrontendModel -> Html FrontendMsg
+viewHome model =
+    div
+        [ Attr.style "display" "flex"
+        , Attr.style "flex-direction" "column"
+        , Attr.style "align-items" "center"
+        , Attr.style "justify-content" "flex-start"
+        , Attr.style "height" "100vh"
+        , Attr.style "width" "100vw"
+        , Attr.style "background" (Color.toHex Color.Background)
+        , Attr.style "font-family" "Arial, sans-serif"
+        , Attr.style "overflow" "hidden"
+        , Attr.style "position" "fixed"
+        , Attr.style "top" "0"
+        , Attr.style "left" "0"
+        , Attr.style "padding" "20px"
+        , Attr.style "box-sizing" "border-box"
+        ]
+        [ h1
+            [ Attr.style "color" (Color.toHex Color.Text)
+            , Attr.style "font-size" "24px"
+            , Attr.style "text-align" "center"
+            , Attr.style "margin-bottom" "20px"
+            , Attr.style "width" "100%"
+            ]
+            [ text "Cooperative Sudoku" ]
+        , viewCurrentPlayer model.currentPlayer
+        , viewNamePopover model.namePopoverOn model.nameInput
+        , div
+            [ Attr.style "background-color" (Color.toHex Color.Input)
+            , Attr.style "border-radius" "12px"
+            , Attr.style "box-shadow" "0 4px 6px rgba(0, 0, 0, 0.1)"
+            , Attr.style "padding" "20px"
+            , Attr.style "max-width" "95vw"
+            , Attr.style "width" "min(95vw, 500px)"
+            , Attr.style "max-height" "calc(95vh - 60px)"
+            , Attr.style "overflow-y" "auto"
+            , Attr.style "display" "flex"
+            , Attr.style "flex-direction" "column"
+            ]
+            [ case model.grid of
+                Just grid ->
+                    viewSudokuGrid grid model.selectedCell
+
+                Nothing ->
+                    viewLoadingSpinner
+            , viewDigitButtons
+            ]
+        , viewConnectedPlayers model.connectedPlayers
+        , viewGameOverPopover model.gameoverPopoverOn
+        ]
+
+
+viewAdmin : Html FrontendMsg
+viewAdmin =
+    div []
+        [ h1 [] [ text "Admin Page" ]
+        , button
+            [ onClick ResetBackend
+            , Attr.style "padding" "10px 20px"
+            , Attr.style "font-size" "16px"
+            , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+            , Attr.style "color" (Color.toHex Color.Text)
+            , Attr.style "border" "none"
+            , Attr.style "border-radius" "4px"
+            , Attr.style "cursor" "pointer"
+            ]
+            [ text "RESET BACKEND" ]
+        ]
 
 
 viewLoadingSpinner : Html FrontendMsg
