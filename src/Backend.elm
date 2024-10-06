@@ -46,7 +46,7 @@ update msg model =
             , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
             )
 
-        OnConnect sessionId clientId ->
+        OnConnect _ clientId ->
             case model.grid of
                 Just grid ->
                     ( model
