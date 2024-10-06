@@ -32,7 +32,7 @@ init url key =
     ( { key = key
       , grid = Nothing
       , selectedCell = Nothing
-      , connectedSessions = []
+      , connectedPlayers = []
       }
     , Cmd.none
     )
@@ -125,8 +125,8 @@ updateFromBackend msg model =
         UpdatedUserGridToFrontend grid ->
             ( { model | grid = Just grid }, Cmd.none )
 
-        ConnectedSessionsChanged sessions ->
-            ( { model | connectedSessions = sessions }, Cmd.none )
+        ConnectedPlayersChanged players ->
+            ( { model | connectedPlayers = players }, Cmd.none )
 
 
 subscriptions : FrontendModel -> Sub FrontendMsg
@@ -187,7 +187,7 @@ view model =
                         viewLoadingSpinner
                 , viewDigitButtons
                 ]
-            , viewConnectedSessions model.connectedSessions
+            , viewConnectedPlayers model.connectedPlayers
             ]
         ]
     }
@@ -450,8 +450,8 @@ viewDigitButtons =
         )
 
 
-viewConnectedSessions : List SessionId -> Html FrontendMsg
-viewConnectedSessions sessions =
+viewConnectedPlayers : List Player -> Html FrontendMsg
+viewConnectedPlayers players =
     div
         [ Attr.style "margin-top" "20px"
         , Attr.style "color" (Color.toHex Color.Text)
@@ -461,12 +461,44 @@ viewConnectedSessions sessions =
         , Attr.style "align-items" "flex-start"
         ]
         ([ div [ Attr.style "font-weight" "bold", Attr.style "margin-bottom" "5px" ] [ text "Connected players:" ] ]
-            ++ List.map viewSessionId sessions
+            ++ List.map viewPlayer players
         )
 
 
-viewSessionId : SessionId -> Html FrontendMsg
-viewSessionId sessionId =
+viewPlayer : Player -> Html FrontendMsg
+viewPlayer player =
     div
-        [ Attr.style "margin-bottom" "3px" ]
-        [ text (String.left 4 sessionId) ]
+        [ Attr.style "margin-bottom" "3px"
+        , Attr.style "display" "flex"
+        , Attr.style "align-items" "center"
+        ]
+        [ text (String.left 4 player.sessionId)
+        , viewLifes player.lifes
+        ]
+
+
+viewLifes : Maybe Life -> Html FrontendMsg
+viewLifes maybeLife =
+    let
+        lifeSymbol =
+            "❤️"
+
+        lifesString =
+            case maybeLife of
+                Just ThreeLife ->
+                    String.repeat 3 lifeSymbol
+
+                Just TwoLife ->
+                    String.repeat 2 lifeSymbol
+
+                Just OneLife ->
+                    lifeSymbol
+
+                Nothing ->
+                    ""
+    in
+    span
+        [ Attr.style "margin-left" "5px"
+        , Attr.style "font-size" "12px"
+        ]
+        [ text lifesString ]

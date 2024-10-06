@@ -35,14 +35,14 @@ type alias FrontendModel =
     { key : Key
     , grid : Maybe SudokuGridFrontend
     , selectedCell : Maybe Position
-    , connectedSessions : List SessionId
+    , connectedPlayers : List Player
     }
 
 
 type alias BackendModel =
     { grid : Maybe SudokuGridBackend
     , seed : Random.Seed
-    , connectedSessions : List SessionId
+    , connectedPlayers : List Player
     }
 
 
@@ -72,7 +72,7 @@ type BackendMsg
 type ToFrontend
     = NewSudokuGridToFrontend SudokuGridFrontend
     | UpdatedUserGridToFrontend SudokuGridFrontend
-    | ConnectedSessionsChanged (List SessionId)
+    | ConnectedPlayersChanged (List Player)
 
 
 cellStateToFrontend : DigitValueBackend -> CellStateFrontend
@@ -95,3 +95,15 @@ sudokuGridToFrontend =
 
 type alias Position =
     ( Int, Int )
+
+
+type alias Player =
+    { sessionId : SessionId
+    , lifes : Maybe Life
+    }
+
+
+type Life
+    = ThreeLife
+    | TwoLife
+    | OneLife

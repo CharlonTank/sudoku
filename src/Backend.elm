@@ -21,7 +21,7 @@ init : ( BackendModel, Cmd BackendMsg )
 init =
     ( { grid = Nothing
       , seed = Random.initialSeed 0
-      , connectedSessions = []
+      , connectedPlayers = []
       }
     , Task.perform (\posix -> InitialTime (Time.posixToMillis posix)) Time.now
     )
@@ -51,18 +51,20 @@ update msg model =
             )
 
         ClientConnected sessionId clientId ->
-            if List.member sessionId model.connectedSessions then
-                -- Session already connected, no need to update
+            if List.any (\player -> player.sessionId == sessionId) model.connectedPlayers then
                 ( model, Cmd.none )
 
             else
                 let
+                    newPlayer =
+                        { sessionId = sessionId, lifes = Just ThreeLife }
+
                     newModel =
-                        { model | connectedSessions = sessionId :: model.connectedSessions }
+                        { model | connectedPlayers = newPlayer :: model.connectedPlayers }
                 in
                 ( newModel
                 , Cmd.batch
-                    [ broadcast (ConnectedSessionsChanged newModel.connectedSessions)
+                    [ broadcast (ConnectedPlayersChanged newModel.connectedPlayers)
                     , case model.grid of
                         Just grid ->
                             sendToFrontend clientId (NewSudokuGridToFrontend (sudokuGridToFrontend grid))
@@ -75,10 +77,10 @@ update msg model =
         ClientDisconnected sessionId clientId ->
             let
                 newModel =
-                    { model | connectedSessions = List.filter (\id -> id /= sessionId) model.connectedSessions }
+                    { model | connectedPlayers = List.filter (\player -> player.sessionId /= sessionId) model.connectedPlayers }
             in
             ( newModel
-            , broadcast (ConnectedSessionsChanged newModel.connectedSessions)
+            , broadcast (ConnectedPlayersChanged newModel.connectedPlayers)
             )
 
         InitialTime time ->
@@ -102,18 +104,18 @@ updateFromFrontend sessionId clientId msg model =
                 ( row, col ) =
                     position
             in
-            handleCellUpdate row col (Guess value) model
+            handleCellUpdate sessionId row col (Guess value) model
 
         RemoveCellValue position ->
             let
                 ( row, col ) =
                     position
             in
-            handleCellUpdate row col EmptyCell model
+            handleCellUpdate sessionId row col EmptyCell model
 
 
-handleCellUpdate : Int -> Int -> CellStateBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
-handleCellUpdate row col newCellState model =
+handleCellUpdate : SessionId -> Int -> Int -> CellStateBackend -> BackendModel -> ( BackendModel, Cmd BackendMsg )
+handleCellUpdate sessionId row col newCellState model =
     model.grid
         |> Maybe.map
             (\grid ->
@@ -132,8 +134,23 @@ handleCellUpdate row col newCellState model =
                                     newGrid =
                                         SudokuLogic.updateGrid row col { cellState = newCellState, value = cell.value } grid
 
+                                    isCorrect =
+                                        case newCellState of
+                                            Guess guessValue ->
+                                                guessValue == cell.value
+
+                                            _ ->
+                                                True
+
+                                    ( updatedPlayers, lifeLost ) =
+                                        if not isCorrect then
+                                            updatePlayerLife sessionId model.connectedPlayers
+
+                                        else
+                                            ( model.connectedPlayers, False )
+
                                     newModel =
-                                        { model | grid = Just newGrid }
+                                        { model | grid = Just newGrid, connectedPlayers = updatedPlayers }
                                 in
                                 if SudokuLogic.isSudokuComplete newGrid then
                                     let
@@ -141,16 +158,55 @@ handleCellUpdate row col newCellState model =
                                             SudokuLogic.generateSudoku model.seed
                                     in
                                     ( { newModel | grid = Just brandNewGrid, seed = newSeed }
-                                    , broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend brandNewGrid))
+                                    , Cmd.batch
+                                        [ broadcast (NewSudokuGridToFrontend (sudokuGridToFrontend brandNewGrid))
+                                        , broadcast (ConnectedPlayersChanged updatedPlayers)
+                                        ]
                                     )
 
                                 else
-                                    ( newModel, broadcast (UpdatedUserGridToFrontend (sudokuGridToFrontend newGrid)) )
+                                    ( newModel
+                                    , Cmd.batch
+                                        [ broadcast (UpdatedUserGridToFrontend (sudokuGridToFrontend newGrid))
+                                        , if lifeLost then
+                                            broadcast (ConnectedPlayersChanged updatedPlayers)
+
+                                          else
+                                            Cmd.none
+                                        ]
+                                    )
 
                     Nothing ->
                         ( model, Cmd.none )
             )
         |> Maybe.withDefault ( model, Cmd.none )
+
+
+updatePlayerLife : SessionId -> List Player -> ( List Player, Bool )
+updatePlayerLife sessionId players =
+    let
+        updateLife player =
+            if player.sessionId == sessionId then
+                case player.lifes of
+                    Just ThreeLife ->
+                        ( { player | lifes = Just TwoLife }, True )
+
+                    Just TwoLife ->
+                        ( { player | lifes = Just OneLife }, True )
+
+                    Just OneLife ->
+                        ( { player | lifes = Nothing }, True )
+
+                    Nothing ->
+                        ( player, False )
+
+            else
+                ( player, False )
+
+        ( updatedPlayers, lifeLostList ) =
+            List.unzip (List.map updateLife players)
+    in
+    ( updatedPlayers, List.any identity lifeLostList )
 
 
 sudokuGridToFrontend : SudokuGridBackend -> SudokuGridFrontend
