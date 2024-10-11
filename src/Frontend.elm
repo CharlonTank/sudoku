@@ -13,6 +13,10 @@ import Palette.Color as Color
 import SudokuLogic
 import Time
 import Types exposing (..)
+import Ui.Button
+import Ui.Input
+import Ui.Popover
+import Ui.Spinner
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, int, map, oneOf, s, string)
 
@@ -269,11 +273,13 @@ viewHome model =
             ]
             [ case model.grid of
                 Just grid ->
-                    viewSudokuGrid grid model.selectedCell
+                    div []
+                        [ viewSudokuGrid grid model.selectedCell
+                        , viewDigitButtons grid
+                        ]
 
                 Nothing ->
                     viewLoadingSpinner
-            , viewDigitButtons
             ]
         , model.currentPlayer
             |> Maybe.map
@@ -292,38 +298,16 @@ viewAdmin : Html FrontendMsg
 viewAdmin =
     div []
         [ h1 [] [ text "Admin Page" ]
-        , button
-            [ onClick ResetBackend
-            , Attr.style "padding" "10px 20px"
-            , Attr.style "font-size" "16px"
-            , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
-            , Attr.style "color" (Color.toHex Color.Text)
-            , Attr.style "border" "none"
-            , Attr.style "border-radius" "4px"
-            , Attr.style "cursor" "pointer"
-            ]
-            [ text "RESET BACKEND" ]
+        , Ui.Button.view
+            { onClick = ResetBackend
+            , label = "RESET BACKEND"
+            }
         ]
 
 
 viewLoadingSpinner : Html FrontendMsg
 viewLoadingSpinner =
-    div
-        [ Attr.style "display" "flex"
-        , Attr.style "justify-content" "center"
-        , Attr.style "align-items" "center"
-        , Attr.style "height" "450px"
-        ]
-        [ div
-            [ Attr.style "border" ("4px solid " ++ Color.toHex Color.LoadingSpinnerBorder)
-            , Attr.style "border-top" ("4px solid " ++ Color.toHex Color.LoadingSpinner)
-            , Attr.style "border-radius" "50%"
-            , Attr.style "width" "50px"
-            , Attr.style "height" "50px"
-            , Attr.style "animation" "spin 1s linear infinite"
-            ]
-            []
-        ]
+    Ui.Spinner.view
 
 
 viewSudokuGrid : SudokuGridFrontend -> Maybe Position -> Html FrontendMsg
@@ -509,7 +493,7 @@ viewSudokuCell grid selectedCell ( rowIndex, colIndex ) cellState =
          , Attr.style "display" "flex"
          , Attr.style "justify-content" "center"
          , Attr.style "align-items" "center"
-         , Attr.style "font-size" "clamp(16px, 5vw, 24px)"
+         , Attr.style "font-size" "clamp(20px, 6vw, 32px)" -- Increased font size here
          , Attr.style "font-weight"
             (if isOriginal then
                 "bold"
@@ -532,47 +516,81 @@ viewSudokuCell grid selectedCell ( rowIndex, colIndex ) cellState =
         [ text cellValue ]
 
 
-viewDigitButtons : Html FrontendMsg
-viewDigitButtons =
+viewDigitButtons : SudokuGridFrontend -> Html FrontendMsg
+viewDigitButtons grid =
+    let
+        allDigits =
+            List.range 1 9
+
+        availableDigits =
+            allDigits
+                |> List.filter (\digit -> not (isDigitSolved digit grid))
+    in
     div
-        [ Attr.style "display" "flex"
-        , Attr.style "justify-content" "space-between"
+        [ Attr.style "display" "grid"
+        , Attr.style "grid-template-columns" "repeat(10, 1fr)"
         , Attr.style "width" "100%"
         , Attr.style "margin-top" "20px"
+        , Attr.style "gap" "10px"
         ]
-        ((List.range 1 9
-            |> List.map
-                (\digit ->
-                    button
+        (List.map
+            (\digit ->
+                if List.member digit availableDigits then
+                    div
                         [ onClick (InputDigit digit)
-                        , Attr.style "flex" "1"
-                        , Attr.style "padding" "10px 0"
-                        , Attr.style "font-size" "16px"
-                        , Attr.style "border" "none"
-                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                        , Attr.style "font-size" "28px"
                         , Attr.style "color" (Color.toHex Color.Text)
                         , Attr.style "cursor" "pointer"
-                        , Attr.style "margin" "0 2px"
-                        , Attr.style "border-radius" "4px"
+                        , Attr.style "display" "flex"
+                        , Attr.style "justify-content" "center"
+                        , Attr.style "align-items" "center"
+                        , Attr.style "user-select" "none"
                         ]
                         [ text (String.fromInt digit) ]
-                )
-         )
-            ++ [ button
+
+                else
+                    div [] []
+             -- Empty div to maintain spacing
+            )
+            allDigits
+            ++ [ div
                     [ onClick RemoveGuess
-                    , Attr.style "flex" "1"
-                    , Attr.style "padding" "10px 0"
-                    , Attr.style "font-size" "16px"
-                    , Attr.style "border" "none"
-                    , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
+                    , Attr.style "font-size" "28px"
                     , Attr.style "color" (Color.toHex Color.Text)
                     , Attr.style "cursor" "pointer"
-                    , Attr.style "margin" "0 2px"
-                    , Attr.style "border-radius" "4px"
+                    , Attr.style "display" "flex"
+                    , Attr.style "justify-content" "center"
+                    , Attr.style "align-items" "center"
+                    , Attr.style "user-select" "none"
                     ]
                     [ text "X" ]
                ]
         )
+
+
+isDigitSolved : Int -> SudokuGridFrontend -> Bool
+isDigitSolved digit grid =
+    let
+        flattenedGrid =
+            List.concat grid
+
+        solvedCount =
+            List.filter
+                (\cellState ->
+                    case cellState of
+                        NotChangeable n ->
+                            n == digit
+
+                        Changeable n ->
+                            n == digit
+
+                        _ ->
+                            False
+                )
+                flattenedGrid
+                |> List.length
+    in
+    solvedCount == 9
 
 
 viewConnectedPlayers : List Player -> Html FrontendMsg
@@ -651,29 +669,15 @@ viewCurrentPlayer maybePlayer =
                     ]
                     [ span [] [ text displayName ]
                     , viewLifes player.lifes
-                    , button
-                        [ onClick OpenNamePopover
-                        , Attr.style "margin-left" "10px"
-                        , Attr.style "padding" "6px 12px"
-                        , Attr.style "font-size" "14px"
-                        , Attr.style "font-weight" "bold"
-                        , Attr.style "color" (Color.toHex Color.Text)
-                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
-                        , Attr.style "border" "none"
-                        , Attr.style "border-radius" "20px"
-                        , Attr.style "cursor" "pointer"
-                        , Attr.style "transition" "background-color 0.3s ease"
-                        , Attr.style "box-shadow" "0 2px 4px rgba(0, 0, 0, 0.1)"
-                        , Attr.style "outline" "none"
-                        ]
-                        [ text
-                            (if player.name == Nothing then
+                    , Ui.Button.view
+                        { onClick = OpenNamePopover
+                        , label =
+                            if player.name == Nothing then
                                 "Set name"
 
-                             else
+                            else
                                 "Change name"
-                            )
-                        ]
+                        }
                     ]
 
             Nothing ->
@@ -697,99 +701,33 @@ playerCanMakeGuess maybePlayer =
 
 viewGameOverPopover : Bool -> Html FrontendMsg
 viewGameOverPopover isVisible =
-    if isVisible then
-        div
-            [ Attr.style "position" "fixed"
-            , Attr.style "top" "0"
-            , Attr.style "left" "0"
-            , Attr.style "width" "100%"
-            , Attr.style "height" "100%"
-            , Attr.style "background-color" "rgba(0, 0, 0, 0.5)"
-            , Attr.style "display" "flex"
-            , Attr.style "justify-content" "center"
-            , Attr.style "align-items" "center"
-            , Attr.style "z-index" "1000"
-            ]
-            [ div
-                [ Attr.style "background-color" (Color.toHex Color.Input)
-                , Attr.style "padding" "20px"
-                , Attr.style "border-radius" "8px"
-                , Attr.style "text-align" "center"
-                ]
-                [ h2 [] [ text "Game Over" ]
-                , p [] [ text "You've lost all your lives!" ]
-                , button
-                    [ onClick CloseGameOverPopover
-                    , Attr.style "margin-top" "10px"
-                    , Attr.style "padding" "5px 10px"
-                    , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
-                    , Attr.style "border" "none"
-                    , Attr.style "border-radius" "4px"
-                    , Attr.style "cursor" "pointer"
-                    ]
-                    [ text "Close" ]
-                ]
-            ]
-
-    else
-        text ""
+    Ui.Popover.view isVisible
+        [ h2 [] [ text "Game Over" ]
+        , p [] [ text "You've lost all your lives!" ]
+        , Ui.Button.view
+            { onClick = CloseGameOverPopover
+            , label = "Close"
+            }
+        ]
 
 
 viewNamePopover : Bool -> String -> Html FrontendMsg
 viewNamePopover isVisible nameInput =
-    if isVisible then
-        div
-            [ Attr.style "position" "fixed"
-            , Attr.style "top" "0"
-            , Attr.style "left" "0"
-            , Attr.style "width" "100%"
-            , Attr.style "height" "100%"
-            , Attr.style "background-color" "rgba(0, 0, 0, 0.5)"
-            , Attr.style "display" "flex"
-            , Attr.style "justify-content" "center"
-            , Attr.style "align-items" "center"
-            , Attr.style "z-index" "1000"
+    Ui.Popover.view isVisible
+        [ h2 [] [ text "Enter Your Name" ]
+        , Ui.Input.view
+            { value = nameInput
+            , placeholder = "Your name"
+            , onInput = UpdateNameInput
+            }
+        , div []
+            [ Ui.Button.view
+                { onClick = SaveName
+                , label = "Save"
+                }
+            , Ui.Button.view
+                { onClick = CloseNamePopover
+                , label = "Cancel"
+                }
             ]
-            [ div
-                [ Attr.style "background-color" (Color.toHex Color.Input)
-                , Attr.style "padding" "20px"
-                , Attr.style "border-radius" "8px"
-                , Attr.style "text-align" "center"
-                ]
-                [ h2 [] [ text "Enter Your Name" ]
-                , input
-                    [ Attr.type_ "text"
-                    , Attr.value nameInput
-                    , Attr.placeholder "Your name"
-                    , Attr.style "margin-bottom" "10px"
-                    , Attr.style "padding" "5px"
-                    , Attr.style "width" "200px"
-                    , onInput UpdateNameInput
-                    ]
-                    []
-                , div []
-                    [ button
-                        [ onClick SaveName
-                        , Attr.style "margin-right" "10px"
-                        , Attr.style "padding" "5px 10px"
-                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
-                        , Attr.style "border" "none"
-                        , Attr.style "border-radius" "4px"
-                        , Attr.style "cursor" "pointer"
-                        ]
-                        [ text "Save" ]
-                    , button
-                        [ onClick CloseNamePopover
-                        , Attr.style "padding" "5px 10px"
-                        , Attr.style "background-color" (Color.toHex Color.ButtonBackground)
-                        , Attr.style "border" "none"
-                        , Attr.style "border-radius" "4px"
-                        , Attr.style "cursor" "pointer"
-                        ]
-                        [ text "Cancel" ]
-                    ]
-                ]
-            ]
-
-    else
-        text ""
+        ]

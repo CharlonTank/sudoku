@@ -16,7 +16,7 @@ type Color
     | LoadingSpinner
     | LoadingSpinnerBorder
     | SameNumber
-    | WrongGuess -- Add this line
+    | WrongGuess
 
 
 toHex : Color -> String
