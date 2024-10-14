@@ -10,6 +10,13 @@ type Color
     | Original
     | Input
     | Selected
+    | BorderLight
+    | BorderDark
+    | ButtonBackground
+    | LoadingSpinner
+    | LoadingSpinnerBorder
+    | SameNumber
+    | WrongGuess
 
 
 toHex : Color -> String
@@ -22,19 +29,45 @@ toHex color =
             "#6c757d"
 
         Background ->
-            "#ffffff"
+            "#f0f4f8"
 
         Text ->
             "#333333"
 
         Completed ->
-            "#e6f3ff"
+            "#a5d6a7"
 
         Original ->
-            "#e0e0e0"
-
-        Input ->
             "#f0f0f0"
 
+        Input ->
+            "#ffffff"
+
         Selected ->
-            "#007bff"
+            "#4a90e2"
+
+        BorderLight ->
+            "#d0d0d0"
+
+        BorderDark ->
+            "#2c3e50"
+
+        ButtonBackground ->
+            "#e0e0e0"
+
+        LoadingSpinner ->
+            "#3498db"
+
+        LoadingSpinnerBorder ->
+            "#f3f3f3"
+
+        SameNumber ->
+            "#e6f3ff"
+
+        WrongGuess ->
+            "#ff0000"
+
+
+
+-- Red color for wrong guesses
+-- Light blue color for highlighting same numbers
